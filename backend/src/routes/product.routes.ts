@@ -170,6 +170,18 @@ router.patch(
   })
 );
 
+// Seller: réactiver un produit archivé (repasse en brouillon, à republier)
+router.patch(
+  '/:id/unarchive',
+  authenticate,
+  authorize(UserRole.SELLER, UserRole.ADMIN),
+  asyncHandler(async (req, res) => {
+    if (!req.auth?.sellerId) throw new AppError('Compte vendeur requis', 403);
+    const product = await productService.unarchiveProduct(req.params.id, req.auth.sellerId);
+    res.json(product);
+  })
+);
+
 // Seller: archiver (retirer de la vente) un produit
 router.delete(
   '/:id',

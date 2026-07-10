@@ -478,6 +478,22 @@ export class ProductService {
     });
   }
 
+  /** Réactivation d'un produit archivé. Repasse en DRAFT (et non ACTIVE directement) :
+   * le vendeur peut avoir besoin de mettre à jour stock/prix avant de republier,
+   * et ça garde le même parcours que la création (publishProduct pour le remettre en ligne). */
+  async unarchiveProduct(productId: string, sellerId: string) {
+    const product = await prisma.product.findFirst({ where: { id: productId, sellerId } });
+    if (!product) throw new AppError('Produit non trouvé', 404);
+    if (product.status !== ProductStatus.ARCHIVED) {
+      throw new AppError("Ce produit n'est pas archivé", 400);
+    }
+
+    return prisma.product.update({
+      where: { id: productId },
+      data: { status: ProductStatus.DRAFT },
+    });
+  }
+
   // ==========================================================================
   // VARIANTES (tailles, couleurs) - stock et prix distincts par combinaison
   // ==========================================================================

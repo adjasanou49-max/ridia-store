@@ -85,7 +85,11 @@ export default function SellerProductsPage() {
                       >
                         <Pencil size={15} />
                       </button>
-                      <PriceIncreaseButton productId={p.id} currentPrice={p.basePriceXof} />
+                      {p.status === 'ARCHIVED' ? (
+                        <UnarchiveButton productId={p.id} />
+                      ) : (
+                        <PriceIncreaseButton productId={p.id} currentPrice={p.basePriceXof} />
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -491,6 +495,31 @@ function CreateProductForm({ onCreated }: { onCreated: () => void }) {
         )}
       </div>
     </div>
+  );
+}
+
+function UnarchiveButton({ productId }: { productId: string }) {
+  const queryClient = useQueryClient();
+  const [submitting, setSubmitting] = useState(false);
+
+  async function unarchive() {
+    setSubmitting(true);
+    try {
+      await api.patch(`/products/${productId}/unarchive`);
+      queryClient.invalidateQueries({ queryKey: ['seller', 'products'] });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={unarchive}
+      disabled={submitting}
+      className="text-xs text-brand-600 font-medium hover:underline disabled:opacity-50"
+    >
+      {submitting ? 'Réactivation...' : 'Réactiver'}
+    </button>
   );
 }
 
