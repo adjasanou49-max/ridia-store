@@ -1,0 +1,46 @@
+import type { Metadata, Viewport } from 'next';
+import './globals.css';
+import { AuthProvider } from '@/lib/auth';
+import { QueryProvider } from '@/lib/query-provider';
+import { Navbar } from '@/components/Navbar';
+import { Footer } from '@/components/Footer';
+import { MobileBottomNav } from '@/components/MobileBottomNav';
+import { CartProvider } from '@/lib/cart';
+import { WishlistProvider } from '@/lib/wishlist';
+import { CurrencyProvider } from '@/lib/currency';
+import { CookieConsentBanner } from '@/components/CookieConsentBanner';
+
+export const metadata: Metadata = {
+  title: 'Ridia Store - Mode Africaine & Import Chine',
+  description:
+    'Marketplace e-commerce : boubous, tissus wax, mode africaine et produits importés. Des milliers de produits, livrés où que vous soyez.',
+  manifest: '/manifest.json',
+};
+
+export const viewport: Viewport = {
+  themeColor: '#f97316',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="fr">
+      <body>
+        <QueryProvider>
+          <AuthProvider>
+            <CartProvider>
+              <WishlistProvider>
+                <CurrencyProvider>
+                  <Navbar />
+                  <main className="min-h-screen pb-16 md:pb-0">{children}</main>
+                  <Footer />
+                  <MobileBottomNav />
+                  <CookieConsentBanner />
+                </CurrencyProvider>
+              </WishlistProvider>
+            </CartProvider>
+          </AuthProvider>
+        </QueryProvider>
+      </body>
+    </html>
+  );
+}

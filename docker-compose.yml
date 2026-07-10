@@ -1,0 +1,101 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ridia-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ridia
+      POSTGRES_PASSWORD: ridia_password
+      POSTGRES_DB: ridia_store
+    ports:
+      - "5432:5432"
+    volumes:
+      - ridia_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ridia -d ridia_store"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: ridia-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - ridia_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: ridia-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://ridia:ridia_password@postgres:5432/ridia_store?schema=public
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./backend/src:/app/src
+    command: sh -c "npx prisma migrate deploy && npx prisma generate && npm run dev"
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: ridia-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://ridia:ridia_password@postgres:5432/ridia_store?schema=public
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./backend/src:/app/src
+    command: sh -c "npx prisma generate && npm run worker"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: ridia-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: sh -c "npm run dev"
+
+volumes:
+  ridia_postgres_data:
+  ridia_redis_data:

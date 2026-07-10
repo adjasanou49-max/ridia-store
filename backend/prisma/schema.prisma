@@ -1,0 +1,881 @@
+// ============================================================================
+// RIDIA STORE - Prisma Schema
+// Marketplace e-commerce pour la francophonie ouest-africaine
+// ============================================================================
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserRole {
+  CUSTOMER
+  SELLER
+  ADMIN
+  // Accès restreint à l'écran "Commandes fournisseur" uniquement - ne voit
+  // jamais produits/utilisateurs/paramètres, contrairement à ADMIN.
+  PURCHASING_AGENT
+  SUPER_ADMIN
+}
+
+enum SellerStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+  REJECTED
+}
+
+enum ProductStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum ImportSource {
+  MANUAL
+  ALIBABA_1688
+  TAOBAO
+  PINDUODUO
+  CSV_UPLOAD
+}
+
+enum ImportJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  PARTIALLY_COMPLETED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+  DISPUTED
+}
+
+enum PaymentProvider {
+  CINETPAY
+  WAVE
+  ORANGE_MONEY
+  MTN_MONEY
+  CUSTOM // réservé à une future API de paiement à brancher (voir CustomPaymentAdapter.ts)
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  ON_HOLD
+}
+
+enum NotificationChannel {
+  WHATSAPP
+  EMAIL
+  SMS
+  PUSH
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  DELIVERED
+  READ
+}
+
+enum ReviewSource {
+  ORGANIC
+  IMPORTED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ============================================================================
+// USERS & AUTH
+// ============================================================================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  phone         String?   @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  role          UserRole  @default(CUSTOMER)
+  isActive      Boolean   @default(true)
+  emailVerified Boolean   @default(false)
+  phoneVerified Boolean   @default(false)
+  phoneOtpCode      String?
+  phoneOtpExpiresAt DateTime?
+  avatarUrl     String?
+  referralCode  String?   @unique
+
+  // Préférences de confidentialité & notifications
+  notifyByEmail    Boolean @default(true)
+  notifyByWhatsapp Boolean @default(true)
+  marketingOptIn   Boolean @default(false)
+  deletionRequestedAt DateTime?
+
+  refreshTokens  RefreshToken[]
+  addresses      Address[]
+  seller         Seller?
+  orders         Order[]
+  cartItems      CartItem[]
+  notifications  Notification[]
+  loyaltyAccount LoyaltyAccount?
+  wishlistItems  WishlistItem[]
+  reviews        Review[]
+  disputes       Dispute[]
+  referralsMade  Referral[] @relation("ReferrerUser")
+  referredBy     Referral?  @relation("ReferredUser")
+
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([email])
+  @@index([phone])
+  @@index([role])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Address {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName    String
+  phone       String
+  country     String   @default("Burkina Faso")
+  city        String
+  district    String?
+  streetLine1 String
+  streetLine2 String?
+  landmark    String?
+  isDefault   Boolean  @default(false)
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ============================================================================
+// SELLERS
+// ============================================================================
+
+model Seller {
+  id               String       @id @default(uuid())
+  userId           String       @unique
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeName        String
+  storeSlug        String       @unique
+  storeDescription String?
+  storeLogoUrl     String?
+  storeBannerUrl   String?
+  status           SellerStatus @default(PENDING)
+
+  commissionRate   Float   @default(15.0)
+  rating           Float   @default(0)
+  reviewCount      Int     @default(0)
+  isVerifiedBadge  Boolean @default(false)
+
+  suspendedAt      DateTime?
+  suspensionReason String?
+
+  products         Product[]
+  orderItems       OrderItem[]
+  payouts          Payout[]
+  sellerConnectors SellerConnector[]
+
+  approvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([storeSlug])
+  @@index([status])
+}
+
+// ============================================================================
+// CATALOG
+// ============================================================================
+
+model Category {
+  id        String     @id @default(uuid())
+  name      String
+  slug      String     @unique
+  parentId  String?
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  iconUrl   String?
+  sortOrder Int        @default(0)
+  isActive  Boolean    @default(true)
+
+  // Marge appliquée automatiquement à tout produit de cette catégorie qui n'a pas de
+  // marge explicite (import en masse, création rapide). Réglable par l'admin depuis
+  // /admin/categories. Si null, on retombe sur la marge globale par défaut (SystemSetting).
+  defaultMarginPercent Float?
+
+  products Product[]
+  attributes CategoryAttribute[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentId])
+  @@index([slug])
+}
+
+// Attribut de filtre par catégorie (ex: "Couleur", "Taille") - permet au client de
+// filtrer les produits ("uniquement en rouge", "taille L"). Les valeurs possibles
+// (options) sont définies ici par catégorie ; chaque produit choisit parmi ces valeurs
+// via ProductAttributeValue.
+model CategoryAttribute {
+  id           String   @id @default(uuid())
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name         String // ex: "Couleur", "Taille", "Matière"
+  options      String[] // ex: ["Rouge", "Bleu", "Vert"]
+  isFilterable Boolean  @default(true)
+  sortOrder    Int      @default(0)
+
+  values ProductAttributeValue[]
+
+  @@index([categoryId])
+}
+
+model Product {
+  id         String   @id @default(uuid())
+  sellerId   String
+  seller     Seller   @relation(fields: [sellerId], references: [id])
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  name        String
+  slug        String @unique
+  sku         String @unique
+  description String @db.Text
+
+  // Texte d'origine (avant traduction) - conservé pour retraduire si besoin
+  // ou afficher la langue source. sourceLanguage ex: "zh", "en"... null = déjà en français.
+  originalName        String?
+  originalDescription String?  @db.Text
+  sourceLanguage      String?
+
+  videoUrl String? // vidéo de démonstration du produit (import fournisseur ou upload vendeur)
+
+  // Traçabilité de l'import automatisé (scraper) - permet au worker de
+  // synchronisation de savoir quelle page réelle revérifier pour ce produit.
+  sourceUrl       String?
+  sourceProductId String?
+
+  // Prix qui augmente à une date programmée - crée de l'urgence ("profite de ce prix
+  // avant qu'il augmente"), comme sur Temu/Pinduoduo. Champs publics (le client doit
+  // voir le compte à rebours), contrairement au coût/marge qui restent internes.
+  scheduledPriceIncreaseAt DateTime?
+  priceAfterIncrease       Decimal?  @db.Decimal(14, 2)
+
+  costPriceCny  Decimal? @db.Decimal(12, 2)
+  exchangeRate  Float?
+  costPriceXof  Decimal? @db.Decimal(14, 2)
+  marginPercent Float    @default(80.0)
+  basePriceXof  Decimal  @db.Decimal(14, 2)
+
+  stockQuantity Int @default(0)
+  reservedStock Int @default(0)
+
+  brand      String?
+  weight     Float?
+  attributes Json?
+  tags       String[]
+
+  status ProductStatus @default(PENDING_REVIEW)
+
+  viewCount   Int   @default(0)
+  salesCount  Int   @default(0)
+  rating      Float @default(0)
+  reviewCount Int   @default(0)
+
+  images   ProductImage[]
+  variants ProductVariant[]
+  priceTiers ProductPriceTier[]
+  attributeValues ProductAttributeValue[]
+  wishlistItems WishlistItem[]
+  reviews  Review[]
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([sellerId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([slug])
+  @@index([basePriceXof])
+  @@index([createdAt])
+}
+
+model ProductImage {
+  id        String  @id @default(uuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  sortOrder Int     @default(0)
+  isPrimary Boolean @default(false)
+
+  @@index([productId])
+}
+
+// Prix dégressif par quantité (style 1688/Taobao/Pinduoduo) :
+// ex. 1 pièce = 100 XOF/unité, à partir de 2 pièces = 85 XOF/unité, etc.
+// Ces informations SONT publiques (visibles du client, comme un tableau de prix par palier),
+// contrairement au coût CNY / marge du vendeur qui eux ne sont jamais exposés publiquement.
+model ProductPriceTier {
+  id              String  @id @default(uuid())
+  productId       String
+  product         Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  minQuantity     Int
+  pricePerUnitXof Decimal @db.Decimal(14, 2)
+
+  @@unique([productId, minQuantity])
+  @@index([productId])
+}
+
+// Valeur d'attribut choisie pour un produit (ex: ce produit est "Rouge" pour
+// l'attribut "Couleur" de sa catégorie) - permet le filtrage sur /products.
+model ProductAttributeValue {
+  id          String            @id @default(uuid())
+  productId   String
+  product     Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attributeId String
+  attribute   CategoryAttribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  value       String
+
+  @@unique([productId, attributeId])
+  @@index([productId])
+  @@index([attributeId, value])
+}
+
+model ProductVariant {
+  id            String  @id @default(uuid())
+  productId     String
+  product       Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku           String? @unique
+  name          String
+  attributes    Json?
+  priceXof      Decimal @db.Decimal(14, 2)
+  stockQuantity Int     @default(0)
+  // Poids propre à cette variante précise (souvent différent du produit parent -
+  // ex: Taille XXL pèse plus que Taille S). Si absent, l'app hôte doit retomber
+  // sur le poids du produit parent.
+  weightKg      Float?
+  imageUrl      String?
+  isActive      Boolean @default(true)
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+}
+
+// ============================================================================
+// SUPPLIER CONNECTORS / IMPORTS
+// ============================================================================
+
+model SellerConnector {
+  id          String       @id @default(uuid())
+  sellerId    String
+  seller      Seller       @relation(fields: [sellerId], references: [id])
+  source      ImportSource
+  displayName String?
+  credentials Json?
+  isActive    Boolean      @default(true)
+  lastSyncAt  DateTime?
+
+  importJobs ImportJob[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sellerId])
+}
+
+// Traçabilité du fait qu'une commande a été passée chez le fournisseur - soit
+// automatiquement via un connecteur API (connectorId renseigné), soit
+// manuellement par un agent humain qui a cliqué le lien produit source et
+// commandé lui-même (markedByUserId renseigné à la place).
+model SupplierOrderForward {
+  id          String                     @id @default(uuid())
+  orderItemId String                     @unique
+  orderItem   OrderItem                  @relation(fields: [orderItemId], references: [id])
+  connectorId String?
+  connector   SellerConnector?           @relation(fields: [connectorId], references: [id])
+  markedByUserId   String?
+  status           SupplierOrderForwardStatus @default(PENDING)
+  supplierOrderRef String?
+  errorMessage     String?
+  sentAt           DateTime?
+  createdAt        DateTime @default(now())
+
+  @@index([status])
+}
+
+enum SupplierOrderForwardStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model ImportJob {
+  id          String          @id @default(uuid())
+  connectorId String
+  connector   SellerConnector @relation(fields: [connectorId], references: [id])
+  source      ImportSource
+  status      ImportJobStatus @default(QUEUED)
+
+  totalItems     Int   @default(0)
+  processedItems Int   @default(0)
+  successItems   Int   @default(0)
+  failedItems    Int   @default(0)
+  cursor         String?
+  errorLog       Json?
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([connectorId])
+  @@index([status])
+}
+
+// ============================================================================
+// CART
+// ============================================================================
+
+model CartItem {
+  id         String          @id @default(uuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product         @relation(fields: [productId], references: [id])
+  variantId  String?
+  variant    ProductVariant? @relation(fields: [variantId], references: [id])
+  quantity   Int             @default(1)
+  reservedAt DateTime        @default(now())
+  expiresAt  DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId, variantId])
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ============================================================================
+// ORDERS
+// ============================================================================
+
+model Order {
+  id                String  @id @default(uuid())
+  orderNumber       String  @unique
+  userId            String
+  user              User    @relation(fields: [userId], references: [id])
+  shippingAddressId String
+  shippingAddress   Address @relation(fields: [shippingAddressId], references: [id])
+
+  status OrderStatus @default(PENDING)
+
+  subtotalXof     Decimal @db.Decimal(14, 2)
+  shippingFeeXof  Decimal @default(0) @db.Decimal(14, 2)
+  discountXof     Decimal @default(0) @db.Decimal(14, 2)
+  couponCode      String?
+  totalXof        Decimal @db.Decimal(14, 2)
+
+  items         OrderItem[]
+  payments      Payment[]
+  statusHistory OrderStatusHistory[]
+  dispute       Dispute?
+
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([orderNumber])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id            String          @id @default(uuid())
+  orderId       String
+  order         Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product         @relation(fields: [productId], references: [id])
+  variantId     String?
+  variant       ProductVariant? @relation(fields: [variantId], references: [id])
+  sellerId      String
+  seller        Seller          @relation(fields: [sellerId], references: [id])
+
+  productName     String
+  quantity        Int
+  unitPriceXof    Decimal @db.Decimal(14, 2)
+  totalXof        Decimal @db.Decimal(14, 2)
+  commissionXof   Decimal @db.Decimal(14, 2)
+  sellerPayoutXof Decimal @db.Decimal(14, 2)
+
+  status         OrderStatus @default(PENDING)
+  trackingNumber String?
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+
+  review Review?
+  supplierForward SupplierOrderForward?
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([sellerId])
+  @@index([productId])
+  @@index([status])
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    OrderStatus
+  note      String?
+  createdAt DateTime    @default(now())
+
+  @@index([orderId])
+}
+
+// ============================================================================
+// PAYMENTS
+// ============================================================================
+
+model Payment {
+  id            String          @id @default(uuid())
+  orderId       String
+  order         Order           @relation(fields: [orderId], references: [id])
+  provider      PaymentProvider
+  providerTxnId String?         @unique
+  status        PaymentStatus   @default(PENDING)
+  amountXof     Decimal         @db.Decimal(14, 2)
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([orderId])
+  @@index([provider, status])
+}
+
+model Payout {
+  id             String       @id @default(uuid())
+  sellerId       String
+  seller         Seller       @relation(fields: [sellerId], references: [id])
+  amountXof      Decimal      @db.Decimal(14, 2)
+  method         String
+  destinationRef String
+  status         PayoutStatus @default(PENDING)
+  periodStart    DateTime
+  periodEnd      DateTime
+  processedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([sellerId])
+  @@index([status])
+}
+
+// ============================================================================
+// NOTIFICATIONS
+// ============================================================================
+
+model Notification {
+  id         String              @id @default(uuid())
+  userId     String
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel    NotificationChannel
+  title      String
+  body       String              @db.Text
+  status     NotificationStatus  @default(QUEUED)
+  failReason String?
+
+  sentAt    DateTime?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ============================================================================
+// AVIS PRODUITS (organiques + importés du fournisseur)
+// ============================================================================
+
+model Review {
+  id        String       @id @default(uuid())
+  productId String
+  product   Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  source ReviewSource @default(ORGANIC)
+  status ReviewStatus @default(APPROVED)
+
+  // Avis organique : lié à un vrai client Ridia ayant reçu sa commande
+  userId      String?
+  user        User?      @relation(fields: [userId], references: [id])
+  orderItemId String?    @unique
+  orderItem   OrderItem? @relation(fields: [orderItemId], references: [id])
+
+  // Avis importé (1688/Taobao/Pinduoduo) : pas de vrai compte Ridia derrière
+  authorName String?
+
+  // Le client peut choisir de masquer son prénom (affiché "Client" à la place)
+  isAnonymous Boolean @default(false)
+
+  rating    Int
+  comment   String?  @db.Text
+  imageUrls String[]
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([userId])
+}
+
+// ============================================================================
+// LITIGES
+// ============================================================================
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED_REFUNDED
+  RESOLVED_REJECTED
+  CLOSED
+}
+
+model Dispute {
+  id          String        @id @default(uuid())
+  orderId     String
+  order       Order         @relation(fields: [orderId], references: [id])
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  reason      String // ex: "Non reçu", "Produit endommagé", "Ne correspond pas à la description"
+  description String        @db.Text
+  imageUrls   String[]
+  status      DisputeStatus @default(OPEN)
+  resolution  String?       @db.Text
+  resolvedBy  String? // ID de l'admin qui a résolu
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+}
+
+// ============================================================================
+// CODES PROMO
+// ============================================================================
+
+enum CouponType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+model Coupon {
+  id            String     @id @default(uuid())
+  code          String     @unique
+  type          CouponType
+  value         Float // pourcentage (0-100) ou montant fixe XOF selon `type`
+  minOrderXof   Decimal?   @db.Decimal(14, 2)
+  maxUses       Int? // null = illimité
+  usedCount     Int        @default(0)
+  maxUsesPerUser Int       @default(1)
+  isActive      Boolean    @default(true)
+  expiresAt     DateTime?
+
+  usages CouponUsage[]
+
+  createdAt DateTime @default(now())
+
+  @@index([code])
+}
+
+model CouponUsage {
+  id       String @id @default(uuid())
+  couponId String
+  coupon   Coupon @relation(fields: [couponId], references: [id])
+  userId   String
+  orderId  String @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([couponId, userId])
+}
+
+// ============================================================================
+// PARRAINAGE
+// ============================================================================
+
+model Referral {
+  id              String   @id @default(uuid())
+  referrerId      String
+  referrer        User     @relation("ReferrerUser", fields: [referrerId], references: [id])
+  referredId      String   @unique
+  referred        User     @relation("ReferredUser", fields: [referredId], references: [id])
+  code            String
+  rewardPointsGiven Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([referrerId])
+  @@index([code])
+}
+
+// ============================================================================
+// CODES D'INVITATION ADMIN - générés exclusivement par le SUPER_ADMIN
+// ============================================================================
+
+// Un employé ne devient jamais ADMIN par lui-même : le SUPER_ADMIN génère un
+// code à usage unique et le transmet manuellement (email/WhatsApp). Le
+// nouvel admin entre ce code une seule fois pour activer son rôle.
+model AdminInviteCode {
+  id        String    @id @default(uuid())
+  code      String    @unique
+  createdBy String // userId du SUPER_ADMIN qui a généré ce code
+  // Rôle que la personne obtient en activant ce code - ADMIN ou
+  // PURCHASING_AGENT uniquement (jamais SUPER_ADMIN via un code).
+  intendedRole UserRole  @default(ADMIN)
+  usedBy    String?   @unique // userId de la personne qui l'a activé
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  @@index([code])
+}
+
+// ============================================================================
+// WISHLIST
+// ============================================================================
+
+model WishlistItem {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+}
+
+// ============================================================================
+// LOYALTY
+// ============================================================================
+
+model LoyaltyAccount {
+  id             String @id @default(uuid())
+  userId         String @unique
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pointsBalance  Int    @default(0)
+  lifetimePoints Int    @default(0)
+  tier           String @default("bronze") // bronze, argent, or, platine
+
+  transactions LoyaltyTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LoyaltyTransaction {
+  id          String         @id @default(uuid())
+  accountId   String
+  account     LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  points      Int // peut être négatif si utilisé/retiré
+  reason      String
+  referenceId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([accountId])
+}
+
+// ============================================================================
+// PARAMÈTRES SYSTÈME (SUPER_ADMIN uniquement)
+// ============================================================================
+
+// ============================================================================
+// AGENT IA DE MODÉRATION - réservé au SUPER_ADMIN
+// ============================================================================
+
+// Mots/expressions retirés automatiquement des descriptions produit avant publication
+// (ex: "1688", "taobao", "dropshipping") - pour ne jamais révéler le fournisseur au client.
+// Gérable uniquement par le SUPER_ADMIN, jamais visible des ADMIN classiques.
+model BlacklistedWord {
+  id        String   @id @default(uuid())
+  word      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+}
