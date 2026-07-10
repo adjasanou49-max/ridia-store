@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AppError } from '../middleware/errorHandler';
 
@@ -40,6 +40,14 @@ export class AdminInviteService {
    * Active le rôle prévu par le code pour l'utilisateur qui l'entre. Le
    * code est marqué comme utilisé et devient inutilisable ensuite - aucun
    * moyen d'en générer un nouveau sans repasser par le SUPER_ADMIN.
+   *
+   * Correction race condition : deux requêtes simultanées avec le même code
+   * pouvaient auparavant toutes les deux passer le contrôle "usedBy === null"
+   * (lu avant qu'aucune des deux n'ait écrit), puis toutes les deux exécuter
+   * la transaction — accordant le rôle à deux utilisateurs différents avec un
+   * code censé être à usage unique. On réclame maintenant le code de façon
+   * atomique via updateMany conditionné sur usedBy: null ; seule la requête
+   * dont le updateMany affecte réellement une ligne peut continuer.
    */
   async redeemCode(userId: string, code: string) {
     const invite = await prisma.adminInviteCode.findUnique({ where: { code } });
@@ -54,13 +62,23 @@ export class AdminInviteService {
       throw new AppError('Ce compte a déjà un rôle spécial', 422);
     }
 
-    await prisma.$transaction([
-      prisma.adminInviteCode.update({
-        where: { id: invite.id },
+    // Réclamation atomique : ne réussit que si le code est encore libre au
+    // moment précis de l'écriture (pas juste au moment de la lecture ci-dessus).
+    // Les deux écritures sont dans la même transaction : si l'attribution du
+    // rôle échouait, la réclamation du code serait annulée aussi (pas de code
+    // "brûlé" sans rôle accordé).
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const claim = await tx.adminInviteCode.updateMany({
+        where: { id: invite.id, usedBy: null },
         data: { usedBy: userId, usedAt: new Date() },
-      }),
-      prisma.user.update({ where: { id: userId }, data: { role: invite.intendedRole } }),
-    ]);
+      });
+
+      if (claim.count === 0) {
+        throw new AppError('Ce code a déjà été utilisé', 422);
+      }
+
+      await tx.user.update({ where: { id: userId }, data: { role: invite.intendedRole } });
+    });
   }
 }
 

@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma';
 import { AppError } from '../middleware/errorHandler';
+import type { Prisma } from '@prisma/client';
 
 export class CouponService {
   async listAll() {
@@ -57,12 +58,36 @@ export class CouponService {
     return { coupon, discountXof: Math.min(discountXof, subtotalXof) };
   }
 
-  /** Enregistre l'utilisation du coupon après création de la commande */
+  /**
+   * Enregistre l'utilisation du coupon après création de la commande.
+   *
+   * Correction race condition : `validate()` vérifie `usedCount < maxUses`
+   * à la lecture, mais deux commandes passées en même temps pouvaient toutes
+   * les deux passer cette vérification puis toutes les deux appeler
+   * `recordUsage`, faisant dépasser `maxUses`. L'incrément est maintenant
+   * conditionné dans son `where` (usedCount < maxUses, si une limite existe) :
+   * si le coupon vient d'atteindre sa limite entre la validation et cet appel,
+   * l'opération échoue proprement (count === 0) au lieu de dépasser la limite.
+   */
   async recordUsage(couponId: string, userId: string, orderId: string) {
-    await prisma.$transaction([
-      prisma.couponUsage.create({ data: { couponId, userId, orderId } }),
-      prisma.coupon.update({ where: { id: couponId }, data: { usedCount: { increment: 1 } } }),
-    ]);
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const coupon = await tx.coupon.findUnique({ where: { id: couponId } });
+      if (!coupon) throw new AppError('Code promo introuvable', 422);
+
+      const increment = await tx.coupon.updateMany({
+        where: {
+          id: couponId,
+          ...(coupon.maxUses != null ? { usedCount: { lt: coupon.maxUses } } : {}),
+        },
+        data: { usedCount: { increment: 1 } },
+      });
+
+      if (increment.count === 0) {
+        throw new AppError('Ce code promo a atteint sa limite d\'utilisation', 422);
+      }
+
+      await tx.couponUsage.create({ data: { couponId, userId, orderId } });
+    });
   }
 }
 

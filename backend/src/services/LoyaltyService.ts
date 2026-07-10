@@ -57,25 +57,43 @@ export class LoyaltyService {
   /**
    * Dépense des points au checkout - conversion fixe 1 point = 1 FCFA de remise.
    * Vérifie le solde avant de débiter, jamais de solde négatif.
+   *
+   * Correction race condition : deux dépenses simultanées lisaient auparavant
+   * le même solde (ex: 100 points) puis débitaient chacune 100 séparément,
+   * pouvant amener le solde à -100. Le débit est maintenant conditionné dans
+   * son `where` (pointsBalance >= pointsToUse) : si une requête concurrente a
+   * déjà débité entre-temps, ce `updateMany` n'affecte aucune ligne et on le
+   * sait immédiatement (count === 0) plutôt que de laisser passer un solde négatif.
    */
   async redeemPoints(userId: string, points: number): Promise<number> {
     if (points <= 0) return 0;
 
     const account = await this.getOrCreateAccount(userId);
-    const pointsToUse = Math.min(points, account.pointsBalance);
+    let pointsToUse = Math.min(points, account.pointsBalance);
     if (pointsToUse <= 0) return 0;
 
-    await prisma.$transaction([
-      prisma.loyaltyAccount.update({
-        where: { id: account.id },
+    // On retente avec le solde réel si une contention a fait échouer la première tentative
+    // (au maximum une fois : au deuxième échec, un solde ailleurs a bougé plus vite que nous).
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const debit = await prisma.loyaltyAccount.updateMany({
+        where: { id: account.id, pointsBalance: { gte: pointsToUse } },
         data: { pointsBalance: { decrement: pointsToUse } },
-      }),
-      prisma.loyaltyTransaction.create({
-        data: { accountId: account.id, points: -pointsToUse, reason: 'Utilisés au checkout' },
-      }),
-    ]);
+      });
 
-    return pointsToUse; // = la remise en FCFA appliquée (1 point = 1 FCFA)
+      if (debit.count > 0) {
+        await prisma.loyaltyTransaction.create({
+          data: { accountId: account.id, points: -pointsToUse, reason: 'Utilisés au checkout' },
+        });
+        return pointsToUse; // = la remise en FCFA appliquée (1 point = 1 FCFA)
+      }
+
+      // Le solde a changé entre-temps : on relit la vraie valeur avant de retenter.
+      const fresh = await prisma.loyaltyAccount.findUnique({ where: { id: account.id } });
+      pointsToUse = Math.min(points, fresh?.pointsBalance ?? 0);
+      if (pointsToUse <= 0) return 0;
+    }
+
+    return 0;
   }
 
   /** Points bonus pour un parrainage réussi */
