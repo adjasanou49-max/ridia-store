@@ -440,6 +440,7 @@ model SellerConnector {
   lastSyncAt  DateTime?
 
   importJobs ImportJob[]
+  supplierOrderForwards SupplierOrderForward[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -708,7 +709,7 @@ enum DisputeStatus {
 
 model Dispute {
   id          String        @id @default(uuid())
-  orderId     String
+  orderId     String        @unique
   order       Order         @relation(fields: [orderId], references: [id])
   userId      String
   user        User          @relation(fields: [userId], references: [id])
