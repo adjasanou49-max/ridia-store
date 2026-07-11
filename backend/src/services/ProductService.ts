@@ -73,7 +73,6 @@ const PUBLIC_PRODUCT_SELECT = {
   salesCount: true,
   rating: true,
   reviewCount: true,
-  isFeatured: true,
   publishedAt: true,
   createdAt: true,
 } satisfies Prisma.ProductSelect;
