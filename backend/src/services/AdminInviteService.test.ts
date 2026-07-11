@@ -1,5 +1,3 @@
-jest.mock('nanoid', () => ({ nanoid: () => 'MOCKEDID1234' }));
-
 // Rôles utilisés dans les tests (évite de dépendre du client Prisma généré,
 // dont l'enum UserRole n'est disponible qu'après `prisma generate`).
 const UserRole = { CUSTOMER: 'CUSTOMER', ADMIN: 'ADMIN', SELLER: 'SELLER' } as const;
