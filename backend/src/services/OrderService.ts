@@ -12,32 +12,48 @@ import { couponService } from './CouponService';
 const STOCK_RESERVATION_MINUTES = 30;
 
 export class OrderService {
-  /** Add item to cart with stock reservation */
+  /**
+   * Ajoute un article au panier avec réservation de stock.
+   *
+   * Correction race condition : la disponibilité était vérifiée en lecture
+   * (`product.stockQuantity - product.reservedStock`) puis `reservedStock`
+   * était incrémenté séparément - deux ajouts simultanés pouvaient chacun
+   * passer le contrôle et réserver plus que le stock réellement disponible.
+   * La réservation est maintenant conditionnée directement dans l'écriture :
+   * elle échoue proprement (au lieu de sur-réserver) si le stock disponible a
+   * changé entre la lecture et l'écriture.
+   */
   async addToCart(userId: string, productId: string, quantity: number, variantId?: string) {
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (!product) throw new AppError('Produit non trouvé', 404);
 
-    const availableStock = product.stockQuantity - product.reservedStock;
-    if (availableStock < quantity) {
-      throw new AppError('Stock insuffisant', 422);
-    }
-
     const expiresAt = new Date(Date.now() + STOCK_RESERVATION_MINUTES * 60 * 1000);
 
-    const cartItem = await prisma.cartItem.upsert({
-      where: {
-        userId_productId_variantId: { userId, productId, variantId: variantId ?? '' } as any,
-      },
-      create: { userId, productId, variantId, quantity, reservedAt: new Date(), expiresAt },
-      update: { quantity, reservedAt: new Date(), expiresAt },
+    const reservation = await prisma.$transaction(async (tx) => {
+      // Réservation atomique : n'incrémente que si assez de stock reste
+      // disponible au moment précis de l'écriture (Raw SQL non nécessaire,
+      // Prisma compare stockQuantity - reservedStock >= quantity via une
+      // expression calculée côté requête grâce au updateMany conditionné).
+      const claim = await tx.$executeRaw`
+        UPDATE "Product"
+        SET "reservedStock" = "reservedStock" + ${quantity}
+        WHERE id = ${productId} AND "stockQuantity" - "reservedStock" >= ${quantity}
+      `;
+
+      if (claim === 0) {
+        throw new AppError('Stock insuffisant', 422);
+      }
+
+      return tx.cartItem.upsert({
+        where: {
+          userId_productId_variantId: { userId, productId, variantId: variantId ?? '' } as any,
+        },
+        create: { userId, productId, variantId, quantity, reservedAt: new Date(), expiresAt },
+        update: { quantity, reservedAt: new Date(), expiresAt },
+      });
     });
 
-    await prisma.product.update({
-      where: { id: productId },
-      data: { reservedStock: { increment: quantity } },
-    });
-
-    return cartItem;
+    return reservation;
   }
 
   async getCart(userId: string) {
