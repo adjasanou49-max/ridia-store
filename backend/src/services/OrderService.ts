@@ -97,7 +97,9 @@ export class OrderService {
     }
 
     const subtotalXof = cartItems.reduce((sum, item) => {
-      const unitPrice = item.variant?.priceXof ?? productService.getUnitPriceForQuantity(item.product, item.quantity);
+      const unitPrice = item.variant?.priceXof
+        ? Number(item.variant.priceXof)
+        : productService.getUnitPriceForQuantity(item.product, item.quantity);
       return sum + unitPrice * item.quantity;
     }, 0);
 
@@ -141,7 +143,9 @@ export class OrderService {
           totalXof,
           items: {
             create: cartItems.map((item) => {
-              const unitPrice = item.variant?.priceXof ?? productService.getUnitPriceForQuantity(item.product, item.quantity);
+              const unitPrice = item.variant?.priceXof
+                ? Number(item.variant.priceXof)
+                : productService.getUnitPriceForQuantity(item.product, item.quantity);
               const lineTotal = unitPrice * item.quantity;
               const commission = lineTotal * (item.product.seller.commissionRate / 100);
               return {
@@ -251,7 +255,7 @@ export class OrderService {
       await notificationQueue.add('order-confirmed', {
         userId: payment.order.userId,
         orderNumber: payment.order.orderNumber,
-        totalXof: payment.order.totalXof,
+        totalXof: Number(payment.order.totalXof),
       });
 
       // Pas d'API fournisseur automatique - un agent humain place la commande

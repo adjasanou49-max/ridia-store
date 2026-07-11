@@ -80,6 +80,10 @@ export class DisputeService {
       logger.error('Remboursement impossible - aucun paiement confirmé trouvé', { orderId });
       return;
     }
+    if (!payment.providerTxnId) {
+      logger.error('Remboursement impossible - aucune référence de transaction chez le prestataire', { orderId });
+      return;
+    }
 
     try {
       const adapter = getPaymentAdapter(payment.provider);
