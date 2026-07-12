@@ -101,6 +101,17 @@ export class SendGridAdapter {
     );
   }
 
+  /** Demande d'avis 3 jours après livraison (voir NotificationService.notifyReviewRequest). */
+  async sendReviewRequest(to: string, orderNumber: string): Promise<void> {
+    const body = `
+      <h2 style="margin:0 0 12px;font-size:19px;">Comment s'est passée ta commande ? 🌟</h2>
+      <p style="margin:0 0 8px;">Ta commande <strong>${orderNumber}</strong> a été livrée il y a quelques jours.</p>
+      <p style="margin:16px 0 0;color:#52525b;">Ton avis aide les autres clients à faire leur choix - ça ne prend qu'une minute.</p>
+    `;
+    const url = `${env.FRONTEND_URL}/orders`;
+    await this.sendEmail(to, `Laisse ton avis - ${orderNumber}`, brandedEmail(body, 'Laisser un avis', url));
+  }
+
   async sendPasswordReset(to: string, resetUrl: string): Promise<void> {
     const body = `
       <h2 style="margin:0 0 12px;font-size:19px;">Réinitialisation de mot de passe</h2>

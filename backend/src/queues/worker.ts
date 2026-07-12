@@ -131,6 +131,9 @@ const notificationWorker = new Worker<NotificationJobData>(
           data.trackingNumber!
         );
         break;
+      case 'order-review-request':
+        await notificationService.notifyReviewRequest(data.userId, data.orderNumber!);
+        break;
       default:
         logger.warn('Unknown notification job type', { name });
     }

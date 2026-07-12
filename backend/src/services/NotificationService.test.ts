@@ -17,6 +17,7 @@ jest.mock('../integrations/notifications/SendGridAdapter', () => ({
   sendGridAdapter: {
     sendOrderConfirmation: jest.fn().mockResolvedValue(undefined),
     sendShippingNotification: jest.fn().mockResolvedValue(undefined),
+    sendReviewRequest: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -29,6 +30,7 @@ const mockedPrisma = prisma as unknown as { user: { findUnique: jest.Mock } };
 const mockedSendGrid = sendGridAdapter as unknown as {
   sendShippingNotification: jest.Mock;
   sendOrderConfirmation: jest.Mock;
+  sendReviewRequest: jest.Mock;
 };
 const mockedWhatsApp = whatsAppAdapter as unknown as { sendTextMessage: jest.Mock };
 
@@ -80,5 +82,55 @@ describe('NotificationService.notifyOrderShipped', () => {
 
     expect(mockedWhatsApp.sendTextMessage).not.toHaveBeenCalled();
     expect(mockedSendGrid.sendShippingNotification).not.toHaveBeenCalled();
+  });
+});
+
+describe('NotificationService.notifyReviewRequest', () => {
+  const service = new NotificationService();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('envoie WhatsApp et email quand le compte est actif', async () => {
+    mockedPrisma.user.findUnique.mockResolvedValue({
+      id: 'u1',
+      email: 'ria@test.com',
+      phone: '+22670000000',
+      isActive: true,
+    });
+
+    await service.notifyReviewRequest('u1', 'RID-2026-ABC');
+
+    expect(mockedWhatsApp.sendTextMessage).toHaveBeenCalled();
+    expect(mockedSendGrid.sendReviewRequest).toHaveBeenCalledWith('ria@test.com', 'RID-2026-ABC');
+  });
+
+  it("n'envoie rien si le compte a été supprimé/anonymisé (RGPD)", async () => {
+    mockedPrisma.user.findUnique.mockResolvedValue({
+      id: 'u1',
+      email: 'deleted-u1@ridia-store.invalid',
+      phone: null,
+      isActive: false,
+    });
+
+    await service.notifyReviewRequest('u1', 'RID-2026-ABC');
+
+    expect(mockedWhatsApp.sendTextMessage).not.toHaveBeenCalled();
+    expect(mockedSendGrid.sendReviewRequest).not.toHaveBeenCalled();
+  });
+
+  it("n'envoie que l'email si le client n'a pas de téléphone enregistré", async () => {
+    mockedPrisma.user.findUnique.mockResolvedValue({
+      id: 'u2',
+      email: 'sansphone@test.com',
+      phone: null,
+      isActive: true,
+    });
+
+    await service.notifyReviewRequest('u2', 'RID-2026-XYZ');
+
+    expect(mockedWhatsApp.sendTextMessage).not.toHaveBeenCalled();
+    expect(mockedSendGrid.sendReviewRequest).toHaveBeenCalledWith('sansphone@test.com', 'RID-2026-XYZ');
   });
 });

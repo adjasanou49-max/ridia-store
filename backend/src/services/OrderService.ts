@@ -383,6 +383,16 @@ export class OrderService {
     if (status === OrderStatus.DELIVERED) {
       await loyaltyService.awardPointsForOrder(order.userId, order.id, Number(order.totalXof));
       await referralService.rewardReferrerOnFirstOrder(order.userId);
+
+      // Demande d'avis différée de 3 jours - laisse le temps au client de
+      // vraiment recevoir/essayer le produit avant de lui demander un avis
+      // (une demande immédiate est perçue comme intrusive et donne de moins
+      // bons taux de réponse en pratique).
+      await notificationQueue.add(
+        'order-review-request',
+        { userId: order.userId, orderNumber: order.orderNumber },
+        { delay: 3 * 24 * 60 * 60 * 1000 }
+      );
     }
 
     return order;

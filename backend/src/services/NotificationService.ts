@@ -38,6 +38,25 @@ export class NotificationService {
     await sendGridAdapter.sendShippingNotification(user.email, orderNumber, trackingNumber);
   }
 
+  /**
+   * Demande d'avis envoyée 3 jours après la livraison (voir
+   * OrderService.updateOrderStatus). Silencieuse si le compte a été
+   * supprimé/anonymisé entre-temps (RGPD - voir AuthService.requestAccountDeletion).
+   */
+  async notifyReviewRequest(userId: string, orderNumber: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isActive) return;
+
+    if (user.phone) {
+      const message = `Comment s'est passée ta commande ${orderNumber} ? Laisse un avis pour aider les autres clients 🌟`;
+      await this.send(userId, NotificationChannel.WHATSAPP, 'Ton avis compte', message, {
+        phone: user.phone,
+      });
+    }
+
+    await sendGridAdapter.sendReviewRequest(user.email, orderNumber);
+  }
+
   async notifyLowStock(sellerId: string, productName: string, remainingStock: number) {
     const seller = await prisma.seller.findUnique({ where: { id: sellerId }, include: { user: true } });
     if (!seller?.user.phone) return;
