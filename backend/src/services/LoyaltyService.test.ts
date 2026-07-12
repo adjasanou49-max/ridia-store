@@ -10,6 +10,9 @@ jest.mock('../config/prisma', () => {
       create: jest.fn(),
       findFirst: jest.fn(),
     },
+    systemSetting: {
+      findMany: jest.fn().mockResolvedValue([]), // aucun réglage admin -> valeurs par défaut
+    },
   };
   mockPrisma.$transaction = jest.fn((arg: any) =>
     Array.isArray(arg) ? Promise.all(arg) : arg(mockPrisma)
@@ -123,5 +126,19 @@ describe('LoyaltyService.awardPointsForOrder - correction bug idempotence', () =
 
     expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
     expect(mockedPrisma.loyaltyAccount.upsert).not.toHaveBeenCalled();
+  });
+
+  it("utilise le taux de points configuré par l'admin plutôt que la valeur par défaut", async () => {
+    mockedPrisma.loyaltyTransaction.findFirst.mockResolvedValue(null);
+    // Admin a configuré 1 point tous les 100 FCFA (au lieu de 1000 par défaut)
+    mockedPrisma.systemSetting.findMany.mockResolvedValueOnce([
+      { key: 'loyaltyPointsPerXof', value: 1 / 100 },
+    ]);
+
+    await service.awardPointsForOrder('user-1', 'order-1', 10000);
+
+    expect(mockedPrisma.loyaltyAccount.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ pointsBalance: { increment: 100 } }) })
+    );
   });
 });

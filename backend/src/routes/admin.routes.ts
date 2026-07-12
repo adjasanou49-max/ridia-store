@@ -320,6 +320,9 @@ router.get(
             'defaultMarginPercent',
             'displayCurrencyRates',
             'enabledPaymentProviders',
+            'loyaltyPointsPerXof',
+            'loyaltyReferralBonusPoints',
+            'loyaltyTierThresholds',
           ],
         },
       },
@@ -344,6 +347,16 @@ router.get(
         MTN_MONEY: true,
         CUSTOM: false,
       },
+      // Fidélité - 1 point / 1000 FCFA dépensés par défaut, 500 points de bonus
+      // parrainage, paliers bronze/argent/or/platine par défaut.
+      loyaltyPointsPerXof: asMap.loyaltyPointsPerXof ?? 1 / 1000,
+      loyaltyReferralBonusPoints: asMap.loyaltyReferralBonusPoints ?? 500,
+      loyaltyTierThresholds: asMap.loyaltyTierThresholds ?? [
+        { tier: 'platine', minPoints: 5000 },
+        { tier: 'or', minPoints: 2000 },
+        { tier: 'argent', minPoints: 500 },
+        { tier: 'bronze', minPoints: 0 },
+      ],
     });
   })
 );
@@ -358,6 +371,9 @@ router.patch(
       defaultMarginPercent,
       displayCurrencyRates,
       enabledPaymentProviders,
+      loyaltyPointsPerXof,
+      loyaltyReferralBonusPoints,
+      loyaltyTierThresholds,
     } = req.body;
 
     await prisma.$transaction([
@@ -386,6 +402,21 @@ router.patch(
         create: { key: 'enabledPaymentProviders', value: enabledPaymentProviders },
         update: { value: enabledPaymentProviders },
       }),
+      prisma.systemSetting.upsert({
+        where: { key: 'loyaltyPointsPerXof' },
+        create: { key: 'loyaltyPointsPerXof', value: loyaltyPointsPerXof },
+        update: { value: loyaltyPointsPerXof },
+      }),
+      prisma.systemSetting.upsert({
+        where: { key: 'loyaltyReferralBonusPoints' },
+        create: { key: 'loyaltyReferralBonusPoints', value: loyaltyReferralBonusPoints },
+        update: { value: loyaltyReferralBonusPoints },
+      }),
+      prisma.systemSetting.upsert({
+        where: { key: 'loyaltyTierThresholds' },
+        create: { key: 'loyaltyTierThresholds', value: loyaltyTierThresholds },
+        update: { value: loyaltyTierThresholds },
+      }),
     ]);
 
     res.json({
@@ -394,6 +425,9 @@ router.patch(
       defaultMarginPercent,
       displayCurrencyRates,
       enabledPaymentProviders,
+      loyaltyPointsPerXof,
+      loyaltyReferralBonusPoints,
+      loyaltyTierThresholds,
     });
   })
 );

@@ -1,7 +1,11 @@
 import { prisma } from '../config/prisma';
 
-const POINTS_PER_XOF_SPENT = 1 / 1000; // 1 point tous les 1000 FCFA dépensés
-const TIER_THRESHOLDS: { tier: string; minPoints: number }[] = [
+// Valeurs par défaut si l'admin n'a jamais rien configuré (voir GET/PATCH
+// /admin/settings). Gardées ici comme fallback pour ne jamais planter si un
+// réglage manque en base - jamais utilisées si un SystemSetting existe.
+const DEFAULT_POINTS_PER_XOF_SPENT = 1 / 1000; // 1 point tous les 1000 FCFA dépensés
+const DEFAULT_REFERRAL_BONUS_POINTS = 500;
+const DEFAULT_TIER_THRESHOLDS: { tier: string; minPoints: number }[] = [
   { tier: 'platine', minPoints: 5000 },
   { tier: 'or', minPoints: 2000 },
   { tier: 'argent', minPoints: 500 },
@@ -9,8 +13,22 @@ const TIER_THRESHOLDS: { tier: string; minPoints: number }[] = [
 ];
 
 export class LoyaltyService {
-  private computeTier(lifetimePoints: number): string {
-    return TIER_THRESHOLDS.find((t) => lifetimePoints >= t.minPoints)?.tier ?? 'bronze';
+  /** Lit les paramètres de fidélité configurés par l'admin, avec fallback sur les valeurs par défaut. */
+  private async getSettings() {
+    const rows = await prisma.systemSetting.findMany({
+      where: { key: { in: ['loyaltyPointsPerXof', 'loyaltyReferralBonusPoints', 'loyaltyTierThresholds'] } },
+    });
+    const asMap = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    return {
+      pointsPerXof: (asMap.loyaltyPointsPerXof as number) ?? DEFAULT_POINTS_PER_XOF_SPENT,
+      referralBonusPoints: (asMap.loyaltyReferralBonusPoints as number) ?? DEFAULT_REFERRAL_BONUS_POINTS,
+      tierThresholds:
+        (asMap.loyaltyTierThresholds as { tier: string; minPoints: number }[]) ?? DEFAULT_TIER_THRESHOLDS,
+    };
+  }
+
+  private computeTier(lifetimePoints: number, thresholds: { tier: string; minPoints: number }[]): string {
+    return thresholds.find((t) => lifetimePoints >= t.minPoints)?.tier ?? 'bronze';
   }
 
   async getOrCreateAccount(userId: string) {
@@ -45,7 +63,8 @@ export class LoyaltyService {
     });
     if (alreadyAwarded) return;
 
-    const points = Math.floor(totalXof * POINTS_PER_XOF_SPENT);
+    const settings = await this.getSettings();
+    const points = Math.floor(totalXof * settings.pointsPerXof);
     if (points <= 0) return;
 
     const account = await this.getOrCreateAccount(userId);
@@ -57,7 +76,7 @@ export class LoyaltyService {
         data: {
           pointsBalance: { increment: points },
           lifetimePoints: newLifetime,
-          tier: this.computeTier(newLifetime),
+          tier: this.computeTier(newLifetime, settings.tierThresholds),
         },
       }),
       prisma.loyaltyTransaction.create({
@@ -110,8 +129,9 @@ export class LoyaltyService {
 
   /** Points bonus pour un parrainage réussi */
   async awardReferralBonus(userId: string, referredUserName: string) {
+    const settings = await this.getSettings();
     const account = await this.getOrCreateAccount(userId);
-    const bonusPoints = 500;
+    const bonusPoints = settings.referralBonusPoints;
     const newLifetime = account.lifetimePoints + bonusPoints;
 
     await prisma.$transaction([
@@ -120,7 +140,7 @@ export class LoyaltyService {
         data: {
           pointsBalance: { increment: bonusPoints },
           lifetimePoints: newLifetime,
-          tier: this.computeTier(newLifetime),
+          tier: this.computeTier(newLifetime, settings.tierThresholds),
         },
       }),
       prisma.loyaltyTransaction.create({

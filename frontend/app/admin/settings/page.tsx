@@ -12,6 +12,9 @@ interface SystemSettings {
   defaultMarginPercent: number | null;
   displayCurrencyRates: Record<string, number>;
   enabledPaymentProviders: Record<string, boolean>;
+  loyaltyPointsPerXof: number;
+  loyaltyReferralBonusPoints: number;
+  loyaltyTierThresholds: { tier: string; minPoints: number }[];
 }
 
 export default function AdminSettingsPage() {
@@ -191,6 +194,73 @@ function SettingsForm({ initial }: { initial: SystemSettings }) {
           >
             <Plus size={14} /> Ajouter
           </button>
+        </div>
+      </div>
+
+      <div className="border-t border-gray-100 pt-4">
+        <label className="block text-sm font-medium mb-1">Programme de fidélité</label>
+        <p className="text-xs text-gray-400 mb-3">
+          Ces réglages s&apos;appliquent immédiatement aux prochaines commandes livrées et aux
+          prochains parrainages - pas d&apos;effet rétroactif sur les points déjà attribués.
+        </p>
+
+        <div className="mb-3">
+          <label className="block text-xs text-gray-500 mb-1">
+            Points gagnés par FCFA dépensé (commande livrée)
+          </label>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 whitespace-nowrap">1 point / </span>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              value={form.loyaltyPointsPerXof > 0 ? Math.round(1 / form.loyaltyPointsPerXof) : ''}
+              onChange={(e) => {
+                const xofPerPoint = Number(e.target.value);
+                setForm({
+                  ...form,
+                  loyaltyPointsPerXof: xofPerPoint > 0 ? 1 / xofPerPoint : 0,
+                });
+              }}
+              className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            />
+            <span className="text-xs text-gray-400">FCFA dépensés</span>
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <label className="block text-xs text-gray-500 mb-1">Bonus de parrainage (points offerts au parrain)</label>
+          <input
+            type="number"
+            step="1"
+            min="0"
+            value={form.loyaltyReferralBonusPoints}
+            onChange={(e) => setForm({ ...form, loyaltyReferralBonusPoints: Number(e.target.value) })}
+            className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-500 mb-2">Paliers de fidélité (points cumulés à vie)</label>
+          {form.loyaltyTierThresholds.map((t, i) => (
+            <div key={t.tier} className="flex items-center gap-2 mb-2">
+              <span className="text-sm w-16 capitalize">{t.tier}</span>
+              <span className="text-xs text-gray-400">dès</span>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={t.minPoints}
+                onChange={(e) => {
+                  const next = [...form.loyaltyTierThresholds];
+                  next[i] = { ...next[i], minPoints: Number(e.target.value) };
+                  setForm({ ...form, loyaltyTierThresholds: next });
+                }}
+                className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+              <span className="text-xs text-gray-400">points</span>
+            </div>
+          ))}
         </div>
       </div>
 
