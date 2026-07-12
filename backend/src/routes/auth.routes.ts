@@ -100,6 +100,7 @@ router.post(
   '/verify-email',
   asyncHandler(async (req, res) => {
     const { token } = req.body;
+    if (!token || typeof token !== 'string') throw new AppError('Token requis', 422);
     await authService.verifyEmail(token);
     res.status(204).send();
   })
@@ -119,8 +120,10 @@ router.post(
 router.post(
   '/verify-phone-otp',
   authenticate,
+  authRateLimiter,
   asyncHandler(async (req, res) => {
     const { code } = req.body;
+    if (!code || typeof code !== 'string') throw new AppError('Code requis', 422);
     await authService.verifyPhoneOtp(req.auth!.userId, code);
     res.status(204).send();
   })
