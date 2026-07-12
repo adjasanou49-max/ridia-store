@@ -23,12 +23,19 @@ export class NotificationService {
 
   async notifyOrderShipped(userId: string, orderNumber: string, trackingNumber: string) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.phone) return;
+    if (!user) return;
 
     const message = `Votre commande ${orderNumber} a été expédiée! Numéro de suivi: ${trackingNumber}`;
-    await this.send(userId, NotificationChannel.WHATSAPP, 'Commande expédiée', message, {
-      phone: user.phone,
-    });
+    if (user.phone) {
+      await this.send(userId, NotificationChannel.WHATSAPP, 'Commande expédiée', message, {
+        phone: user.phone,
+      });
+    }
+
+    // Envoyé systématiquement en plus du WhatsApp - un client sans numéro
+    // enregistré (ou qui ne consulte pas WhatsApp) ne doit jamais rater
+    // cette notification faute d'avoir un seul canal de secours.
+    await sendGridAdapter.sendShippingNotification(user.email, orderNumber, trackingNumber);
   }
 
   async notifyLowStock(sellerId: string, productName: string, remainingStock: number) {
