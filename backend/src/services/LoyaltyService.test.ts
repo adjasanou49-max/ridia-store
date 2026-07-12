@@ -26,6 +26,7 @@ import { LoyaltyService } from './LoyaltyService';
 const mockedPrisma = prisma as unknown as {
   loyaltyAccount: { upsert: jest.Mock; updateMany: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
   loyaltyTransaction: { create: jest.Mock; findFirst: jest.Mock };
+  systemSetting: { findMany: jest.Mock };
   $transaction: jest.Mock;
 };
 
