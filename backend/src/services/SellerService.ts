@@ -72,14 +72,24 @@ export class SellerService {
     });
   }
 
+  /**
+   * Correction incohérence : `totalPayoutOwed` sommait TOUS les articles
+   * vendus (y compris commandes non livrées, annulées, en litige) sans
+   * jamais soustraire les versements déjà demandés/payés - le vendeur voyait
+   * un montant "disponible à retirer" bien supérieur à ce qu'il pouvait
+   * réellement demander (voir la validation ajoutée dans requestPayout),
+   * menant à des demandes refusées de façon confuse. Même calcul que
+   * requestPayout maintenant, pour que l'affichage corresponde à la réalité.
+   */
   async getDashboardStats(sellerId: string) {
-    const [seller, orderItemsAgg, pendingOrders, productCount] = await Promise.all([
+    const [seller, revenueAgg, totalPayoutOwed, pendingOrders, productCount] = await Promise.all([
       prisma.seller.findUnique({ where: { id: sellerId } }),
       prisma.orderItem.aggregate({
         where: { sellerId },
-        _sum: { totalXof: true, sellerPayoutXof: true },
+        _sum: { totalXof: true },
         _count: true,
       }),
+      this.getAvailablePayoutAmount(sellerId),
       prisma.orderItem.count({ where: { sellerId, status: { in: ['PENDING', 'CONFIRMED', 'PROCESSING'] } } }),
       prisma.product.count({ where: { sellerId } }),
     ]);
@@ -89,9 +99,9 @@ export class SellerService {
     return {
       storeName: seller.storeName,
       rating: seller.rating,
-      totalRevenue: orderItemsAgg._sum.totalXof || 0,
-      totalPayoutOwed: orderItemsAgg._sum.sellerPayoutXof || 0,
-      totalOrders: orderItemsAgg._count,
+      totalRevenue: revenueAgg._sum.totalXof || 0,
+      totalPayoutOwed,
+      totalOrders: revenueAgg._count,
       pendingOrders,
       productCount,
     };
@@ -106,10 +116,8 @@ export class SellerService {
    * vérifié ici : somme des commandes réellement livrées, moins les
    * versements déjà en attente ou déjà payés (jamais compté deux fois).
    */
-  async requestPayout(sellerId: string, amountXof: number, method: string, destinationRef: string) {
-    const seller = await prisma.seller.findUnique({ where: { id: sellerId } });
-    if (!seller) throw new AppError('Vendeur non trouvé', 404);
-
+  /** Montant réellement disponible à demander en versement (voir getDashboardStats et requestPayout) */
+  private async getAvailablePayoutAmount(sellerId: string): Promise<number> {
     const [earnedAgg, alreadyRequestedAgg] = await Promise.all([
       prisma.orderItem.aggregate({
         where: { sellerId, status: 'DELIVERED' },
@@ -123,7 +131,14 @@ export class SellerService {
 
     const totalEarned = Number(earnedAgg._sum.sellerPayoutXof || 0);
     const alreadyRequestedOrPaid = Number(alreadyRequestedAgg._sum.amountXof || 0);
-    const availableToRequest = totalEarned - alreadyRequestedOrPaid;
+    return Math.max(0, totalEarned - alreadyRequestedOrPaid);
+  }
+
+  async requestPayout(sellerId: string, amountXof: number, method: string, destinationRef: string) {
+    const seller = await prisma.seller.findUnique({ where: { id: sellerId } });
+    if (!seller) throw new AppError('Vendeur non trouvé', 404);
+
+    const availableToRequest = await this.getAvailablePayoutAmount(sellerId);
 
     if (amountXof > availableToRequest) {
       throw new AppError(
