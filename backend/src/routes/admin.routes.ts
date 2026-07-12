@@ -9,7 +9,7 @@ import { contentModerationAgent } from '../integrations/ai/ContentModerationAgen
 import { disputeService } from '../services/DisputeService';
 import { couponService } from '../services/CouponService';
 import { adminInviteService } from '../services/AdminInviteService';
-import { createCouponSchema } from '../utils/validators';
+import { createCouponSchema, adminUpdateOrderStatusSchema } from '../utils/validators';
 import { env } from '../config/env';
 import { UserRole } from '@prisma/client';
 
@@ -229,7 +229,7 @@ router.get(
 router.patch(
   '/orders/:id/status',
   asyncHandler(async (req, res) => {
-    const { status, note } = req.body;
+    const { status, note } = adminUpdateOrderStatusSchema.parse(req.body);
     const order = await orderService.adminUpdateOrderStatus(req.params.id, status, note);
     res.json(order);
   })

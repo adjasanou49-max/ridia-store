@@ -8,6 +8,7 @@ import {
   resetPasswordSchema,
   updateStoreProfileSchema,
   requestPayoutSchema,
+  adminUpdateOrderStatusSchema,
 } from './validators';
 
 describe('registerSchema', () => {
@@ -215,5 +216,22 @@ describe('requestPayoutSchema - correction (NaN/négatif passait silencieusement
       destinationRef: '1',
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('adminUpdateOrderStatusSchema - correction (statut non validé avant, erreur 500 confuse en cas de faute de frappe)', () => {
+  it('accepte un statut valide', () => {
+    const result = adminUpdateOrderStatusSchema.safeParse({ status: 'SHIPPED' });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejette un statut invalide/mal orthographié', () => {
+    const result = adminUpdateOrderStatusSchema.safeParse({ status: 'SHIPED' });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepte une note optionnelle', () => {
+    const result = adminUpdateOrderStatusSchema.safeParse({ status: 'DELIVERED', note: 'Livré en main propre' });
+    expect(result.success).toBe(true);
   });
 });

@@ -79,6 +79,23 @@ export const requestPayoutSchema = z.object({
   destinationRef: z.string().min(4, 'Référence de destination invalide'),
 });
 
+// Correction : cette route acceptait n'importe quelle chaîne pour `status`,
+// laissant Prisma renvoyer une erreur 500 confuse en cas de faute de frappe
+// plutôt qu'un message de validation clair.
+export const adminUpdateOrderStatusSchema = z.object({
+  status: z.enum([
+    'PENDING',
+    'CONFIRMED',
+    'PROCESSING',
+    'SHIPPED',
+    'DELIVERED',
+    'CANCELLED',
+    'REFUNDED',
+    'DISPUTED',
+  ]),
+  note: z.string().optional(),
+});
+
 export const bulkImportSchema = z.object({
   source: z.enum(['ALIBABA_1688', 'TAOBAO', 'PINDUODUO', 'MANUAL', 'CSV_UPLOAD']),
   rows: z
