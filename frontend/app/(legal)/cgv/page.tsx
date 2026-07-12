@@ -24,7 +24,7 @@ export default function CGVPage() {
 
       <h2 className="font-semibold mt-6 mb-2">4. Paiement</h2>
       <p className="text-gray-600">
-        Le paiement s&apos;effectue via les moyens proposés sur le site (CinetPay, Wave, Orange
+        Le paiement s&apos;effectue via les moyens proposés sur le site (Wave, Orange
         Money, MTN Mobile Money). La commande n&apos;est confirmée qu&apos;après validation du paiement.
       </p>
 

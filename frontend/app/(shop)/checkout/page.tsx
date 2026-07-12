@@ -13,7 +13,6 @@ import { AddressForm } from '../addresses/page';
 import type { Address, PaymentProvider } from '@/types';
 
 const PAYMENT_OPTIONS: { value: PaymentProvider; label: string; logo: string }[] = [
-  { value: 'CINETPAY', label: 'CinetPay (Carte / Mobile Money)', logo: '💳' },
   { value: 'WAVE', label: 'Wave', logo: '🌊' },
   { value: 'ORANGE_MONEY', label: 'Orange Money', logo: '🟠' },
   { value: 'MTN_MONEY', label: 'MTN Mobile Money', logo: '💛' },
@@ -37,7 +36,7 @@ export default function CheckoutPage() {
     user ? `${user.firstName} ${user.lastName}` : ''
   );
   const [customerPhone, setCustomerPhone] = useState(user?.phone || '');
-  const [provider, setProvider] = useState<PaymentProvider>('CINETPAY');
+  const [provider, setProvider] = useState<PaymentProvider>('WAVE');
   const [couponCode, setCouponCode] = useState('');
   const [discountXof, setDiscountXof] = useState(0);
   const [couponError, setCouponError] = useState<string | null>(null);
@@ -115,7 +114,7 @@ export default function CheckoutPage() {
       await refresh();
 
       if (data.paymentUrl) {
-        // Redirection vers la page de paiement (CinetPay/Wave/etc.)
+        // Redirection vers la page de paiement (Wave/Orange Money/etc.)
         window.location.href = data.paymentUrl;
       } else {
         router.push(`/orders/${data.order.id}`);

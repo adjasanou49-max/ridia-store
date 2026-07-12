@@ -45,11 +45,6 @@ JWT_ACCESS_SECRET=<génère avec: openssl rand -hex 32>
 JWT_REFRESH_SECRET=<génère avec: openssl rand -hex 32>
 ENCRYPTION_KEY=<exactement 32 caractères>
 
-CINETPAY_API_KEY=...
-CINETPAY_SITE_ID=...
-CINETPAY_SECRET_KEY=...
-CINETPAY_MODE=live
-
 WAVE_API_KEY=...
 WAVE_MODE=live
 
@@ -119,7 +114,6 @@ Une fois en ligne, configure les URLs de webhook dans chaque dashboard provider 
 
 | Provider | URL webhook |
 |----------|-------------|
-| CinetPay | `https://TON_BACKEND/api/webhooks/cinetpay` |
 | Wave | `https://TON_BACKEND/api/webhooks/wave` |
 | Orange Money | `https://TON_BACKEND/api/webhooks/orange-money` |
 | MTN MoMo | `https://TON_BACKEND/api/webhooks/mtn-momo` |

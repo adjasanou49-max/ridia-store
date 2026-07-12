@@ -46,7 +46,7 @@ export const addToCartSchema = z.object({
 
 export const createOrderSchema = z.object({
   shippingAddressId: z.string(),
-  paymentProvider: z.enum(['CINETPAY', 'WAVE', 'ORANGE_MONEY', 'MTN_MONEY', 'CUSTOM']),
+  paymentProvider: z.enum(['WAVE', 'ORANGE_MONEY', 'MTN_MONEY', 'CUSTOM']),
   customerPhone: z.string().min(8),
   customerName: z.string().min(2),
   couponCode: z.string().optional(),

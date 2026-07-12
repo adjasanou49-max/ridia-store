@@ -27,12 +27,6 @@ export const env = {
 
   ENCRYPTION_KEY: required('ENCRYPTION_KEY', 'dev_32_char_encryption_key_0000'),
 
-  CINETPAY: {
-    apiKey: required('CINETPAY_API_KEY'),
-    siteId: required('CINETPAY_SITE_ID'),
-    secretKey: required('CINETPAY_SECRET_KEY'),
-    mode: required('CINETPAY_MODE', 'mock'),
-  },
   WAVE: {
     apiKey: required('WAVE_API_KEY'),
     mode: required('WAVE_MODE', 'mock'),

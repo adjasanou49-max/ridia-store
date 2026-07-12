@@ -246,7 +246,6 @@ router.get(
   asyncHandler(async (_req, res) => {
     const row = await prisma.systemSetting.findUnique({ where: { key: 'enabledPaymentProviders' } });
     const enabled = (row?.value as Record<string, boolean>) ?? {
-      CINETPAY: true,
       WAVE: true,
       ORANGE_MONEY: true,
       MTN_MONEY: true,

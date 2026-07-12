@@ -54,7 +54,7 @@ describe('createOrderSchema', () => {
   it('accepte une commande sans code promo (optionnel)', () => {
     const result = createOrderSchema.safeParse({
       shippingAddressId: 'addr-1',
-      paymentProvider: 'CINETPAY',
+      paymentProvider: 'WAVE',
       customerPhone: '70000000',
       customerName: 'Ria Dev',
     });

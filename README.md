@@ -28,7 +28,7 @@ cp frontend/.env.example frontend/.env
 Édite `backend/.env` et remplis au minimum :
 - `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` (chaînes aléatoires longues)
 - `ENCRYPTION_KEY` (exactement 32 caractères)
-- Les clés API (CinetPay, WhatsApp, etc.) — laisse vide en mode `mock` pour tester sans vrais comptes
+- Les clés API (Wave, WhatsApp, etc.) — laisse vide en mode `mock` pour tester sans vrais comptes
 
 ### 2. Lancer avec Docker Compose
 
@@ -113,13 +113,12 @@ de la protection — chaque route sensible vérifie le rôle côté serveur, ind
 
 ## 💳 Paiements
 
-4 providers déjà intégrés (adapters dans `backend/src/integrations/payments/`) :
-- **CinetPay** (carte + mobile money agrégé)
+3 providers déjà intégrés (adapters dans `backend/src/integrations/payments/`) :
 - **Wave**
 - **Orange Money**
 - **MTN Mobile Money**
 
-Chaque adapter tourne en mode `mock` par défaut (`CINETPAY_MODE=mock` etc. dans `.env`) —
+Chaque adapter tourne en mode `mock` par défaut (`WAVE_MODE=mock` etc. dans `.env`) —
 ça simule un paiement réussi sans appeler la vraie API, pratique pour développer sans comptes réels.
 Passe en `live` une fois tes comptes marchands approuvés.
 
@@ -172,6 +171,6 @@ Voir [`DEPLOYMENT.md`](./DEPLOYMENT.md) pour le guide complet (Railway + Vercel)
 
 **Backend:** Node.js 20, TypeScript, Express, Prisma (PostgreSQL), BullMQ (Redis), Zod, JWT
 **Frontend:** Next.js 16 (App Router), React 18, TailwindCSS, React Query, Zustand
-**Paiements:** CinetPay, Wave, Orange Money, MTN MoMo
+**Paiements:** Wave, Orange Money, MTN MoMo
 **Notifications:** WhatsApp Business API, SendGrid
 **Sourcing:** Connecteurs 1688 / Taobao / Pinduoduo (import manuel + bulk CSV)

@@ -293,7 +293,6 @@ router.get(
       // Tous activés par défaut - le vendeur les désactive un par un si besoin
       // (ex: pas encore de contrat signé avec tel opérateur mobile money).
       enabledPaymentProviders: asMap.enabledPaymentProviders ?? {
-        CINETPAY: true,
         WAVE: true,
         ORANGE_MONEY: true,
         MTN_MONEY: true,

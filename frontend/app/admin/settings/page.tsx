@@ -198,7 +198,6 @@ function SettingsForm({ initial }: { initial: SystemSettings }) {
         <label className="block text-sm font-medium mb-2">Moyens de paiement activés</label>
         <div className="space-y-2">
           {Object.entries({
-            CINETPAY: 'CinetPay (Carte / Mobile Money)',
             WAVE: 'Wave',
             ORANGE_MONEY: 'Orange Money',
             MTN_MONEY: 'MTN Mobile Money',

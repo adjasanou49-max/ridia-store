@@ -157,7 +157,7 @@ export type OrderStatus =
   | 'REFUNDED'
   | 'DISPUTED';
 
-export type PaymentProvider = 'CINETPAY' | 'WAVE' | 'ORANGE_MONEY' | 'MTN_MONEY' | 'CUSTOM';
+export type PaymentProvider = 'WAVE' | 'ORANGE_MONEY' | 'MTN_MONEY' | 'CUSTOM';
 
 export interface OrderItem {
   id: string;
