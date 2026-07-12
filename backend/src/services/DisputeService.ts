@@ -49,16 +49,33 @@ export class DisputeService {
     });
   }
 
+  /**
+   * Correction race condition (la plus critique financièrement de cette
+   * revue) : la résolution n'était jamais conditionnée à l'état actuel du
+   * litige - deux résolutions concurrentes (double-clic admin, ou deux
+   * admins sur le même litige) pouvaient toutes les deux lire le paiement
+   * comme "SUCCEEDED" et déclencher CHACUNE un vrai remboursement chez le
+   * prestataire de paiement, remboursant le client deux fois. La mise à
+   * jour du litige est maintenant conditionnée : seule la résolution dont
+   * l'écriture atomique réussit (litige pas déjà dans un état terminal)
+   * déclenche le remboursement.
+   */
   async resolveDispute(
     disputeId: string,
     adminId: string,
     resolution: string,
     outcome: 'RESOLVED_REFUNDED' | 'RESOLVED_REJECTED'
   ) {
-    const dispute = await prisma.dispute.update({
-      where: { id: disputeId },
+    const claim = await prisma.dispute.updateMany({
+      where: { id: disputeId, status: { notIn: ['RESOLVED_REFUNDED', 'RESOLVED_REJECTED', 'CLOSED'] } },
       data: { status: outcome, resolution, resolvedBy: adminId, resolvedAt: new Date() },
     });
+
+    if (claim.count === 0) {
+      throw new AppError('Ce litige a déjà été résolu', 409);
+    }
+
+    const dispute = await prisma.dispute.findUniqueOrThrow({ where: { id: disputeId } });
 
     // Remboursement réellement déclenché chez le prestataire de paiement - pas juste
     // un changement de statut interne. Si ça échoue, le litige reste marqué remboursé
