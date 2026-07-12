@@ -3,6 +3,14 @@ import Cookies from 'js-cookie';
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
+// `secure: true` uniquement en production - en local (http://localhost) le
+// navigateur rejette silencieusement les cookies "secure" sur une connexion
+// non chiffrée, ce qui casserait complètement l'authentification en dev.
+const COOKIE_OPTIONS = {
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+};
+
 export const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
@@ -45,8 +53,8 @@ api.interceptors.response.use(
 
       try {
         const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
-        Cookies.set('ridia_access_token', data.accessToken, { expires: 1 });
-        Cookies.set('ridia_refresh_token', data.refreshToken, { expires: 30 });
+        Cookies.set('ridia_access_token', data.accessToken, { expires: 1, ...COOKIE_OPTIONS });
+        Cookies.set('ridia_refresh_token', data.refreshToken, { expires: 30, ...COOKIE_OPTIONS });
 
         refreshQueue.forEach((cb) => cb());
         refreshQueue = [];
@@ -66,8 +74,8 @@ api.interceptors.response.use(
 );
 
 export function setAuthCookies(accessToken: string, refreshToken: string) {
-  Cookies.set('ridia_access_token', accessToken, { expires: 1 }); // 1 jour
-  Cookies.set('ridia_refresh_token', refreshToken, { expires: 30 }); // 30 jours
+  Cookies.set('ridia_access_token', accessToken, { expires: 1, ...COOKIE_OPTIONS }); // 1 jour
+  Cookies.set('ridia_refresh_token', refreshToken, { expires: 30, ...COOKIE_OPTIONS }); // 30 jours
 }
 
 export function clearAuthCookies() {
