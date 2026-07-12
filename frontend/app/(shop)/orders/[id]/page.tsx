@@ -6,9 +6,99 @@ import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { formatXof, formatDate } from '@/lib/utils';
-import type { Order } from '@/types';
+import type { Order, OrderStatus } from '@/types';
 
 const CANCELLABLE_STATUSES = ['PENDING', 'CONFIRMED', 'PROCESSING'];
+
+// Ordre logique du parcours normal d'une commande - sert à savoir jusqu'où
+// remplir la timeline même si certaines étapes n'ont pas encore d'entrée
+// dans statusHistory (ex: commande tout juste confirmée, pas encore expédiée).
+const STATUS_FLOW: OrderStatus[] = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'];
+
+const STATUS_LABELS: Record<OrderStatus, string> = {
+  PENDING: 'En attente de paiement',
+  CONFIRMED: 'Paiement confirmé',
+  PROCESSING: 'En préparation',
+  SHIPPED: 'Expédiée',
+  DELIVERED: 'Livrée',
+  CANCELLED: 'Annulée',
+  REFUNDED: 'Remboursée',
+  DISPUTED: 'En litige',
+};
+
+const STATUS_BADGE_STYLES: Record<OrderStatus, string> = {
+  PENDING: 'bg-gray-100 text-gray-600',
+  CONFIRMED: 'bg-blue-50 text-blue-700',
+  PROCESSING: 'bg-amber-50 text-amber-700',
+  SHIPPED: 'bg-sky-50 text-sky-700',
+  DELIVERED: 'bg-green-50 text-green-700',
+  CANCELLED: 'bg-gray-100 text-gray-500',
+  REFUNDED: 'bg-gray-100 text-gray-500',
+  DISPUTED: 'bg-red-50 text-red-700',
+};
+
+function OrderStatusBadge({ status }: { status: OrderStatus }) {
+  return (
+    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_BADGE_STYLES[status]}`}>
+      {STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+/**
+ * Timeline visuelle du parcours de la commande. Les statuts terminaux
+ * (annulée/remboursée/litige) sont affichés à part, pas dans le fil normal,
+ * car ils sortent du parcours linéaire habituel.
+ */
+function OrderTimeline({ order }: { order: Order }) {
+  const isOffTrack = ['CANCELLED', 'REFUNDED', 'DISPUTED'].includes(order.status);
+  const currentIndex = STATUS_FLOW.indexOf(order.status);
+  const historyByStatus = new Map((order.statusHistory ?? []).map((h) => [h.status, h]));
+
+  if (isOffTrack) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-100 p-5 mb-6">
+        <OrderStatusBadge status={order.status} />
+        {historyByStatus.get(order.status)?.note && (
+          <p className="text-sm text-gray-500 mt-2">{historyByStatus.get(order.status)?.note}</p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5 mb-6">
+      <div className="flex items-center justify-between">
+        {STATUS_FLOW.map((step, i) => {
+          const reached = currentIndex >= i;
+          const entry = historyByStatus.get(step);
+          return (
+            <div key={step} className="flex-1 flex flex-col items-center text-center relative">
+              {i > 0 && (
+                <div
+                  className={`absolute top-3 right-1/2 w-full h-0.5 -z-0 ${
+                    currentIndex >= i ? 'bg-brand-500' : 'bg-gray-200'
+                  }`}
+                />
+              )}
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center z-10 ${
+                  reached ? 'bg-brand-500' : 'bg-gray-200'
+                }`}
+              >
+                {reached && <div className="w-2 h-2 rounded-full bg-white" />}
+              </div>
+              <p className={`text-xs mt-2 ${reached ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
+                {STATUS_LABELS[step]}
+              </p>
+              {entry && <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(entry.createdAt)}</p>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -64,7 +154,12 @@ export default function OrderDetailPage() {
           )}
         </div>
       </div>
-      <p className="text-gray-500 mb-6">Passée le {formatDate(order.createdAt)}</p>
+      <p className="text-gray-500 mb-3">Passée le {formatDate(order.createdAt)}</p>
+      <div className="mb-4">
+        <OrderStatusBadge status={order.status} />
+      </div>
+
+      <OrderTimeline order={order} />
 
       {showDisputeForm && (
         <DisputeForm orderId={order.id} onDone={() => setShowDisputeForm(false)} />

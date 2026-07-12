@@ -172,6 +172,13 @@ export interface OrderItem {
   product?: { images: ProductImage[] };
 }
 
+export interface OrderStatusHistoryEntry {
+  id: string;
+  status: OrderStatus;
+  note?: string | null;
+  createdAt: string;
+}
+
 export interface Order {
   id: string;
   orderNumber: string;
@@ -180,6 +187,7 @@ export interface Order {
   shippingFeeXof: number;
   totalXof: number;
   items: OrderItem[];
+  statusHistory?: OrderStatusHistoryEntry[];
   createdAt: string;
   deliveredAt?: string | null;
 }
