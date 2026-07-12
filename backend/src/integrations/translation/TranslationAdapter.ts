@@ -34,12 +34,26 @@ export interface TranslationAdapter {
 }
 
 class DeepLTranslationAdapter implements TranslationAdapter {
+  /**
+   * Correction bug : le code appelait toujours l'endpoint Free
+   * (api-free.deepl.com), qui rejette les clés Pro (et vice-versa) - DeepL
+   * documente officiellement que les clés Free se terminent TOUJOURS par
+   * ":fx", contrairement aux clés Pro. Sans cette détection, un compte Pro
+   * verrait toutes ses traductions échouer silencieusement (repli sur le
+   * texte original, juste journalisé en erreur - facile à ne jamais remarquer).
+   */
+  private get baseUrl(): string {
+    return env.TRANSLATION.deeplApiKey.endsWith(':fx')
+      ? 'https://api-free.deepl.com'
+      : 'https://api.deepl.com';
+  }
+
   async translate(text: string, targetLang: string, sourceLang?: string): Promise<string> {
     if (!text.trim()) return text;
 
     try {
       const { data } = await axios.post(
-        'https://api-free.deepl.com/v2/translate',
+        `${this.baseUrl}/v2/translate`,
         {
           text: [text],
           target_lang: targetLang.toUpperCase(),
