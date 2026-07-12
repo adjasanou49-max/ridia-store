@@ -13,7 +13,11 @@ const STOCK_RESERVATION_MINUTES = 30;
 
 export class OrderService {
   /**
-   * Ajoute un article au panier avec réservation de stock.
+   * Ajoute un article au panier avec réservation de stock. Si l'article est
+   * déjà dans le panier, `quantity` remplace la quantité existante (comportement
+   * du frontend actuel) - on ne doit donc réserver/libérer que la différence
+   * (delta), pas la nouvelle quantité en entier, sous peine de sur-réserver du
+   * stock à chaque nouvel appel sur un même produit.
    *
    * Correction race condition : la disponibilité était vérifiée en lecture
    * (`product.stockQuantity - product.reservedStock`) puis `reservedStock`
@@ -30,18 +34,31 @@ export class OrderService {
     const expiresAt = new Date(Date.now() + STOCK_RESERVATION_MINUTES * 60 * 1000);
 
     const reservation = await prisma.$transaction(async (tx) => {
-      // Réservation atomique : n'incrémente que si assez de stock reste
-      // disponible au moment précis de l'écriture (Raw SQL non nécessaire,
-      // Prisma compare stockQuantity - reservedStock >= quantity via une
-      // expression calculée côté requête grâce au updateMany conditionné).
-      const claim = await tx.$executeRaw`
-        UPDATE "Product"
-        SET "reservedStock" = "reservedStock" + ${quantity}
-        WHERE id = ${productId} AND "stockQuantity" - "reservedStock" >= ${quantity}
-      `;
+      const existing = await tx.cartItem.findUnique({
+        where: {
+          userId_productId_variantId: { userId, productId, variantId: variantId ?? '' } as any,
+        },
+      });
+      const delta = quantity - (existing?.quantity ?? 0);
 
-      if (claim === 0) {
-        throw new AppError('Stock insuffisant', 422);
+      if (delta > 0) {
+        // Réservation atomique : n'incrémente que si assez de stock reste
+        // disponible au moment précis de l'écriture, pour le delta uniquement.
+        const claim = await tx.$executeRaw`
+          UPDATE "Product"
+          SET "reservedStock" = "reservedStock" + ${delta}
+          WHERE id = ${productId} AND "stockQuantity" - "reservedStock" >= ${delta}
+        `;
+
+        if (claim === 0) {
+          throw new AppError('Stock insuffisant', 422);
+        }
+      } else if (delta < 0) {
+        // On réduit la quantité : libère la différence, toujours possible.
+        await tx.product.update({
+          where: { id: productId },
+          data: { reservedStock: { decrement: -delta } },
+        });
       }
 
       return tx.cartItem.upsert({

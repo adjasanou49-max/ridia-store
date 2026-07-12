@@ -3,7 +3,7 @@ jest.mock('nanoid', () => ({ nanoid: () => 'ABC123' }));
 jest.mock('../config/prisma', () => {
   const mockPrisma: any = {
     product: { findUnique: jest.fn(), update: jest.fn() },
-    cartItem: { findMany: jest.fn(), findFirst: jest.fn(), upsert: jest.fn(), delete: jest.fn(), deleteMany: jest.fn() },
+    cartItem: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), upsert: jest.fn(), delete: jest.fn(), deleteMany: jest.fn() },
     order: { create: jest.fn(), update: jest.fn() },
     payment: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
   };
@@ -47,9 +47,10 @@ describe('OrderService', () => {
     jest.clearAllMocks();
   });
 
-  describe('addToCart - correction race condition de réservation de stock', () => {
-    it('réserve avec succès quand le stock est disponible', async () => {
+  describe('addToCart - correction race condition + désynchronisation de quantité', () => {
+    it('réserve avec succès quand le stock est disponible (nouvel article)', async () => {
       mockedPrisma.product.findUnique.mockResolvedValue({ id: 'p1', stockQuantity: 10, reservedStock: 2 });
+      mockedPrisma.cartItem.findUnique.mockResolvedValue(null);
       mockedPrisma.$executeRaw.mockResolvedValue(1); // 1 ligne affectée = réservation réussie
       mockedPrisma.cartItem.upsert.mockResolvedValue({ id: 'ci1', quantity: 3 });
 
@@ -61,6 +62,7 @@ describe('OrderService', () => {
 
     it("refuse et ne crée pas d'article panier si le stock devient insuffisant au moment de la réservation (race condition)", async () => {
       mockedPrisma.product.findUnique.mockResolvedValue({ id: 'p1', stockQuantity: 10, reservedStock: 2 });
+      mockedPrisma.cartItem.findUnique.mockResolvedValue(null);
       // Simule une réservation concurrente ayant épuisé le stock entre-temps :
       // l'UPDATE conditionné n'affecte aucune ligne.
       mockedPrisma.$executeRaw.mockResolvedValue(0);
@@ -73,6 +75,35 @@ describe('OrderService', () => {
       mockedPrisma.product.findUnique.mockResolvedValue(null);
 
       await expect(service.addToCart('u1', 'inexistant', 1)).rejects.toThrow('Produit non trouvé');
+    });
+
+    it("ne réserve que le delta (pas la quantité totale) quand l'article est déjà dans le panier", async () => {
+      mockedPrisma.product.findUnique.mockResolvedValue({ id: 'p1', stockQuantity: 10, reservedStock: 5 });
+      mockedPrisma.cartItem.findUnique.mockResolvedValue({ id: 'ci1', quantity: 2 }); // déjà 2 réservés
+      mockedPrisma.$executeRaw.mockResolvedValue(1);
+      mockedPrisma.cartItem.upsert.mockResolvedValue({ id: 'ci1', quantity: 5 });
+
+      await service.addToCart('u1', 'p1', 5); // 2 -> 5 : delta = 3, pas 5
+
+      const rawCall = mockedPrisma.$executeRaw.mock.calls[0];
+      // Le template tag reçoit (strings, productId, delta) ou (strings, delta, productId, delta)
+      // selon l'ordre des interpolations ; on vérifie juste que 3 (le delta) apparaît, pas 5.
+      expect(rawCall).toContain(3);
+      expect(rawCall).not.toContain(5);
+    });
+
+    it('libère du stock (sans jamais échouer) quand la quantité diminue', async () => {
+      mockedPrisma.product.findUnique.mockResolvedValue({ id: 'p1', stockQuantity: 10, reservedStock: 5 });
+      mockedPrisma.cartItem.findUnique.mockResolvedValue({ id: 'ci1', quantity: 4 });
+      mockedPrisma.cartItem.upsert.mockResolvedValue({ id: 'ci1', quantity: 1 });
+
+      await service.addToCart('u1', 'p1', 1); // 4 -> 1 : libère 3
+
+      expect(mockedPrisma.product.update).toHaveBeenCalledWith({
+        where: { id: 'p1' },
+        data: { reservedStock: { decrement: 3 } },
+      });
+      expect(mockedPrisma.$executeRaw).not.toHaveBeenCalled();
     });
   });
 
