@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma';
 import { AppError } from '../middleware/errorHandler';
+import type { Prisma } from '@prisma/client';
 
 interface AddressInput {
   fullName: string;
@@ -24,15 +25,20 @@ export class AddressService {
   async create(userId: string, input: AddressInput) {
     // Si c'est la toute première adresse, ou explicitement demandée par défaut,
     // on désactive le flag par défaut sur les autres adresses de l'utilisateur.
+    // Les deux écritures sont dans une transaction : sans ça, deux créations
+    // "par défaut" simultanées pourraient toutes les deux passer le updateMany
+    // avant qu'aucune n'ait encore créé sa ligne, laissant deux adresses
+    // par défaut en même temps.
     const existingCount = await prisma.address.count({ where: { userId } });
     const shouldBeDefault = input.isDefault || existingCount === 0;
 
-    if (shouldBeDefault) {
-      await prisma.address.updateMany({ where: { userId }, data: { isDefault: false } });
-    }
-
-    return prisma.address.create({
-      data: { ...input, userId, isDefault: shouldBeDefault },
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      if (shouldBeDefault) {
+        await tx.address.updateMany({ where: { userId }, data: { isDefault: false } });
+      }
+      return tx.address.create({
+        data: { ...input, userId, isDefault: shouldBeDefault },
+      });
     });
   }
 
@@ -40,11 +46,12 @@ export class AddressService {
     const existing = await prisma.address.findFirst({ where: { id: addressId, userId } });
     if (!existing) throw new AppError('Adresse non trouvée', 404);
 
-    if (input.isDefault) {
-      await prisma.address.updateMany({ where: { userId }, data: { isDefault: false } });
-    }
-
-    return prisma.address.update({ where: { id: addressId }, data: input });
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      if (input.isDefault) {
+        await tx.address.updateMany({ where: { userId }, data: { isDefault: false } });
+      }
+      return tx.address.update({ where: { id: addressId }, data: input });
+    });
   }
 
   async remove(userId: string, addressId: string) {

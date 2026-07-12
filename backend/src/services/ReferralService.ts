@@ -27,7 +27,16 @@ export class ReferralService {
     });
   }
 
-  /** Récompense le parrain quand le filleul passe sa première commande */
+  /**
+   * Récompense le parrain quand le filleul passe sa première commande.
+   *
+   * Correction race condition : `rewardPointsGiven` était vérifié en lecture
+   * puis mis à jour séparément après l'attribution du bonus - deux appels
+   * concurrents (ex: retry d'une tâche de file d'attente après un échec
+   * partiel) pouvaient chacun lire `false` et attribuer le bonus deux fois
+   * pour la même commande. La réclamation est maintenant atomique : seul
+   * l'appel dont l'écriture conditionnée réussit continue vers l'attribution.
+   */
   async rewardReferrerOnFirstOrder(referredUserId: string) {
     const referral = await prisma.referral.findUnique({
       where: { referredId: referredUserId },
@@ -35,8 +44,13 @@ export class ReferralService {
     });
     if (!referral || referral.rewardPointsGiven) return;
 
+    const claim = await prisma.referral.updateMany({
+      where: { id: referral.id, rewardPointsGiven: false },
+      data: { rewardPointsGiven: true },
+    });
+    if (claim.count === 0) return; // déjà réclamé par un appel concurrent
+
     await loyaltyService.awardReferralBonus(referral.referrerId, referral.referred.firstName);
-    await prisma.referral.update({ where: { id: referral.id }, data: { rewardPointsGiven: true } });
   }
 
   async getMyReferrals(userId: string) {
