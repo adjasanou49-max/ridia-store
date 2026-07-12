@@ -27,12 +27,58 @@ router.get(
       prisma.order.aggregate({ _sum: { totalXof: true }, _count: true }),
     ]);
 
+    // Tendance 30 jours : commandes qui comptent réellement pour le CA
+    // (annulées/remboursées exclues, comme pour le GMV total ci-dessus dans
+    // l'esprit - ici on garde tout sauf CANCELLED pour la comparaison visuelle).
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+
+    const recentOrders = await prisma.order.findMany({
+      where: { createdAt: { gte: since }, status: { not: 'CANCELLED' } },
+      select: { createdAt: true, totalXof: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Regroupement par jour (YYYY-MM-DD) - un jour sans commande apparaît à 0,
+    // pour que le graphique ne saute pas de dates et reste lisible.
+    const dailyMap = new Map<string, { revenueXof: number; orderCount: number }>();
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(since);
+      d.setDate(d.getDate() + i + 1);
+      dailyMap.set(d.toISOString().slice(0, 10), { revenueXof: 0, orderCount: 0 });
+    }
+    for (const order of recentOrders) {
+      const key = order.createdAt.toISOString().slice(0, 10);
+      const entry = dailyMap.get(key);
+      if (entry) {
+        entry.revenueXof += Number(order.totalXof);
+        entry.orderCount += 1;
+      }
+    }
+    const dailyTrend = Array.from(dailyMap.entries()).map(([date, v]) => ({ date, ...v }));
+
+    // Top 5 produits par chiffre d'affaires cumulé (toutes commandes confondues)
+    const topProductsRaw = await prisma.orderItem.groupBy({
+      by: ['productId', 'productName'],
+      _sum: { totalXof: true, quantity: true },
+      orderBy: { _sum: { totalXof: 'desc' } },
+      take: 5,
+    });
+    const topProducts = topProductsRaw.map((p) => ({
+      productId: p.productId,
+      name: p.productName,
+      revenueXof: Number(p._sum.totalXof || 0),
+      unitsSold: p._sum.quantity || 0,
+    }));
+
     res.json({
       userCount,
       sellerCount,
       productCount,
       totalGMV: orderStats._sum.totalXof || 0,
       totalOrders: orderStats._count,
+      dailyTrend,
+      topProducts,
     });
   })
 );
