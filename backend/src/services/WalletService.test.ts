@@ -2,28 +2,38 @@ jest.mock('../config/prisma', () => {
   const mockPrisma: any = {
     wallet: { upsert: jest.fn(), updateMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     walletTransaction: { create: jest.fn(), findMany: jest.fn() },
+    walletTopUp: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    walletWithdrawalRequest: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
   };
   mockPrisma.$transaction = jest.fn((arg: any) =>
     Array.isArray(arg) ? Promise.all(arg) : arg(mockPrisma)
   );
   return { prisma: mockPrisma };
 });
+jest.mock('nanoid', () => ({ nanoid: () => 'ABC123' }));
+jest.mock('../integrations/payments/PaymentProviderRegistry', () => ({
+  getPaymentAdapter: jest.fn(),
+}));
 
 import { prisma } from '../config/prisma';
+import { getPaymentAdapter } from '../integrations/payments/PaymentProviderRegistry';
 import { WalletService } from './WalletService';
 
 const mockedPrisma = prisma as unknown as {
   wallet: { upsert: jest.Mock; updateMany: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
   walletTransaction: { create: jest.Mock; findMany: jest.Mock };
+  walletTopUp: { create: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
+  walletWithdrawalRequest: { create: jest.Mock; findMany: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
   $transaction: jest.Mock;
 };
+const mockedGetAdapter = getPaymentAdapter as jest.Mock;
 
 describe('WalletService.credit', () => {
   const service = new WalletService();
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedPrisma.wallet.upsert.mockResolvedValue({ id: 'w1', userId: 'u1', balanceXof: 1000 });
+    mockedPrisma.wallet.upsert.mockResolvedValue({ id: 'w1', userId: 'u1', balanceXof: 1000, withdrawableBalanceXof: 1000 });
   });
 
   it('crédite le solde et enregistre une transaction positive', async () => {
@@ -53,7 +63,7 @@ describe('WalletService.debit - même schéma anti-race-condition que LoyaltySer
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedPrisma.wallet.upsert.mockResolvedValue({ id: 'w1', userId: 'u1', balanceXof: 3000 });
+    mockedPrisma.wallet.upsert.mockResolvedValue({ id: 'w1', userId: 'u1', balanceXof: 3000, withdrawableBalanceXof: 3000 });
   });
 
   it('débite normalement quand le solde est suffisant', async () => {
@@ -64,7 +74,7 @@ describe('WalletService.debit - même schéma anti-race-condition que LoyaltySer
     expect(used).toBe(2000);
     expect(mockedPrisma.wallet.updateMany).toHaveBeenCalledWith({
       where: { id: 'w1', balanceXof: { gte: 2000 } },
-      data: { balanceXof: { decrement: 2000 } },
+      data: { balanceXof: { decrement: 2000 }, withdrawableBalanceXof: { decrement: 2000 } },
     });
     expect(mockedPrisma.walletTransaction.create).toHaveBeenCalledWith({
       data: {
@@ -95,6 +105,25 @@ describe('WalletService.debit - même schéma anti-race-condition que LoyaltySer
     expect(used).toBe(500);
   });
 
+  it("consomme en priorité la part non retirable (bonus) lors d'une dépense, pour préserver l'argent réel du client", async () => {
+    // Solde total 3000, dont seulement 1000 retirable (2000 de bonus admin)
+    mockedPrisma.wallet.upsert.mockResolvedValue({
+      id: 'w1',
+      userId: 'u1',
+      balanceXof: 3000,
+      withdrawableBalanceXof: 1000,
+    });
+    mockedPrisma.wallet.updateMany.mockResolvedValue({ count: 1 });
+
+    await service.debit('u1', 1500, 'DEBIT_ORDER_PAYMENT' as any, 'Paiement commande');
+
+    // 1500 dépensés : les 2000 de bonus couvrent tout, le retirable (1000) reste intact
+    expect(mockedPrisma.wallet.updateMany).toHaveBeenCalledWith({
+      where: { id: 'w1', balanceXof: { gte: 1500 } },
+      data: { balanceXof: { decrement: 1500 }, withdrawableBalanceXof: { decrement: 0 } },
+    });
+  });
+
   it('renvoie 0 sans écrire pour un montant nul ou négatif', async () => {
     expect(await service.debit('u1', 0, 'DEBIT_ORDER_PAYMENT' as any, 'test')).toBe(0);
     expect(await service.debit('u1', -50, 'DEBIT_ORDER_PAYMENT' as any, 'test')).toBe(0);
@@ -107,7 +136,7 @@ describe('WalletService.refundOrderToWallet', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedPrisma.wallet.upsert.mockResolvedValue({ id: 'w1', userId: 'u1', balanceXof: 0 });
+    mockedPrisma.wallet.upsert.mockResolvedValue({ id: 'w1', userId: 'u1', balanceXof: 0, withdrawableBalanceXof: 0 });
   });
 
   it('crédite le wallet avec le type CREDIT_REFUND et référence la commande', async () => {

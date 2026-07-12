@@ -1,9 +1,26 @@
 import { Router } from 'express';
 import { orderService } from '../services/OrderService';
-import { asyncHandler } from '../middleware/errorHandler';
+import { walletService } from '../services/WalletService';
+import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { logger } from '../config/logger';
 
 const router = Router();
+
+/**
+ * Un même providerTxnId peut correspondre soit au paiement d'une commande,
+ * soit à un dépôt wallet (voir WalletService.initiateTopUp) - on tente
+ * d'abord la commande (cas le plus fréquent), et si aucun paiement de
+ * commande ne correspond, on tente un dépôt wallet avant d'abandonner.
+ */
+async function confirmAnyPayment(providerTxnId: string) {
+  try {
+    await orderService.confirmPayment(providerTxnId);
+    return;
+  } catch (err) {
+    if (!(err instanceof AppError) || err.statusCode !== 404) throw err;
+  }
+  await walletService.confirmTopUp(providerTxnId);
+}
 
 // Note sécurité : Wave, Orange Money et MTN MoMo n'ont pas de vérification de
 // signature dédiée ici car leurs schémas exacts n'ont pas été confirmés dans
@@ -17,7 +34,7 @@ router.post(
   asyncHandler(async (req, res) => {
     logger.info('Wave webhook received', { body: req.body });
     const providerTxnId = req.body.client_reference;
-    if (providerTxnId) await orderService.confirmPayment(providerTxnId);
+    if (providerTxnId) await confirmAnyPayment(providerTxnId);
     res.status(200).send('OK');
   })
 );
@@ -27,7 +44,7 @@ router.post(
   asyncHandler(async (req, res) => {
     logger.info('Orange Money webhook received', { body: req.body });
     const providerTxnId = req.body.order_id;
-    if (providerTxnId) await orderService.confirmPayment(providerTxnId);
+    if (providerTxnId) await confirmAnyPayment(providerTxnId);
     res.status(200).send('OK');
   })
 );
@@ -37,7 +54,7 @@ router.post(
   asyncHandler(async (req, res) => {
     logger.info('MTN MoMo webhook received', { body: req.body });
     const providerTxnId = req.body.referenceId;
-    if (providerTxnId) await orderService.confirmPayment(providerTxnId);
+    if (providerTxnId) await confirmAnyPayment(providerTxnId);
     res.status(200).send('OK');
   })
 );
@@ -49,7 +66,7 @@ router.post(
   asyncHandler(async (req, res) => {
     logger.info('Custom payment webhook received', { body: req.body });
     const providerTxnId = req.body.transaction_id || req.body.id;
-    if (providerTxnId) await orderService.confirmPayment(providerTxnId);
+    if (providerTxnId) await confirmAnyPayment(providerTxnId);
     res.status(200).send('OK');
   })
 );

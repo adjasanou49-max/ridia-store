@@ -871,17 +871,72 @@ model Wallet {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   balanceXof Decimal  @default(0) @db.Decimal(14, 2)
 
-  transactions WalletTransaction[]
+  // Sous-ensemble de balanceXof qui peut être retiré en argent réel (dépôts
+  // du client + remboursements). Les crédits admin/bonus ne sont JAMAIS
+  // retirables - utilisables uniquement pour payer des commandes. Une dépense
+  // consomme toujours le non-retirable en premier (préserve l'argent réel du
+  // client le plus longtemps possible) - voir WalletService.debit.
+  withdrawableBalanceXof Decimal @default(0) @db.Decimal(14, 2)
+
+  transactions        WalletTransaction[]
+  withdrawalRequests  WalletWithdrawalRequest[]
+  topUps              WalletTopUp[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+// Suit un dépôt en cours - créé à l'initiation du paiement, confirmé (ou
+// marqué échoué) par le webhook du prestataire, comme pour les paiements de
+// commande mais sans dépendre du modèle Payment (lié à une commande).
+model WalletTopUp {
+  id            String    @id @default(uuid())
+  walletId      String
+  wallet        Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  amountXof     Decimal   @db.Decimal(14, 2)
+  provider      PaymentProvider
+  providerTxnId String    @unique
+  status        String    @default("PENDING") // PENDING | SUCCEEDED | FAILED
+  createdAt     DateTime  @default(now())
+  confirmedAt   DateTime?
+
+  @@index([walletId])
+}
+
 enum WalletTransactionType {
-  CREDIT_REFUND // remboursement d'une commande annulée/en litige, viré au wallet plutôt qu'au prestataire
-  CREDIT_ADMIN // geste commercial / compensation manuelle
+  CREDIT_TOPUP // dépôt du client par mobile money/carte - retirable
+  CREDIT_REFUND // remboursement d'une commande annulée/en litige - retirable
+  CREDIT_ADMIN // geste commercial / bonus - jamais retirable, dépensable seulement
   DEBIT_ORDER_PAYMENT // utilisé pour payer (en tout ou partie) une commande
   DEBIT_ADMIN // correction manuelle
+  DEBIT_WITHDRAWAL // retrait demandé par le client (voir WalletWithdrawalRequest)
+}
+
+enum WalletWithdrawalStatus {
+  PENDING // en attente de traitement manuel par l'équipe
+  COMPLETED // argent réellement envoyé au client (marqué manuellement par un admin)
+  REJECTED // refusée (ex: suspicion de fraude) - le solde est recrédité
+}
+
+// Le versement réel reste manuel (voir WalletService.requestWithdrawal) tant
+// qu'il n'existe pas d'intégration testée d'envoi d'argent réel chez les
+// prestataires - un admin traite la demande depuis son propre compte
+// marchand Wave/Orange/MTN puis marque la demande comme complétée ici.
+model WalletWithdrawalRequest {
+  id             String                  @id @default(uuid())
+  walletId       String
+  wallet         Wallet                  @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  amountXof      Decimal                 @db.Decimal(14, 2)
+  phoneNumber    String // numéro mobile money où envoyer l'argent
+  status         WalletWithdrawalStatus  @default(PENDING)
+  adminNote      String?
+  processedBy    String?
+  processedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([walletId])
+  @@index([status])
 }
 
 model WalletTransaction {

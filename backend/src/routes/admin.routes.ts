@@ -7,6 +7,7 @@ import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { authenticate, authorize } from '../middleware/auth';
 import { contentModerationAgent } from '../integrations/ai/ContentModerationAgent';
 import { disputeService } from '../services/DisputeService';
+import { walletService } from '../services/WalletService';
 import { couponService } from '../services/CouponService';
 import { adminInviteService } from '../services/AdminInviteService';
 import { createCouponSchema } from '../utils/validators';
@@ -598,6 +599,28 @@ router.patch(
     }
     const dispute = await disputeService.resolveDispute(req.params.id, req.auth!.userId, resolution, outcome);
     res.json(dispute);
+  })
+);
+
+// ---------------- Retraits Wallet (visibles ADMIN + SUPER_ADMIN) ----------------
+// Le versement réel reste manuel (voir WalletService) - l'équipe envoie
+// l'argent depuis son propre compte marchand Wave/Orange/MTN, puis marque la
+// demande comme complétée ici.
+router.get(
+  '/wallet/withdrawals',
+  asyncHandler(async (_req, res) => {
+    const withdrawals = await walletService.getPendingWithdrawals();
+    res.json(withdrawals);
+  })
+);
+
+router.patch(
+  '/wallet/withdrawals/:id',
+  asyncHandler(async (req, res) => {
+    const { approve, note } = req.body;
+    if (typeof approve !== 'boolean') throw new AppError('Le champ "approve" (booléen) est requis', 422);
+    await walletService.resolveWithdrawal(req.params.id, req.auth!.userId, approve, note);
+    res.status(204).send();
   })
 );
 

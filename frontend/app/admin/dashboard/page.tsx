@@ -166,6 +166,12 @@ export default function AdminDashboardPage() {
                 >
                   Produits en attente de review
                 </a>
+                <a
+                  href="/admin/wallet-withdrawals"
+                  className="px-4 py-2 bg-brand-50 text-brand-700 rounded-lg font-medium hover:bg-brand-100"
+                >
+                  Retraits Wallet en attente
+                </a>
               </div>
             </div>
           </div>

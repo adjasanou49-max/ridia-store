@@ -169,7 +169,7 @@ export class OrderService {
     let walletAmountToActuallyUse = 0;
     if (walletAmountToUse && walletAmountToUse > 0) {
       const walletBalance = await walletService.getBalance(userId);
-      walletAmountToActuallyUse = Math.min(walletAmountToUse, walletBalance, totalXof);
+      walletAmountToActuallyUse = Math.min(walletAmountToUse, walletBalance.balanceXof, totalXof);
     }
     const amountToChargeProvider = totalXof - walletAmountToActuallyUse;
 
