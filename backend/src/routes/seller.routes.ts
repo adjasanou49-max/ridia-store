@@ -5,7 +5,7 @@ import { productImportService } from '../services/ProductImportService';
 import { orderService } from '../services/OrderService';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { authenticate, authorize } from '../middleware/auth';
-import { sellerApplicationSchema, bulkImportSchema } from '../utils/validators';
+import { sellerApplicationSchema, bulkImportSchema, updateStoreProfileSchema } from '../utils/validators';
 import { UserRole, ImportSource } from '@prisma/client';
 
 const router = Router();
@@ -169,13 +169,8 @@ router.patch(
   authorize(UserRole.SELLER),
   asyncHandler(async (req, res) => {
     if (!req.auth?.sellerId) throw new AppError('Compte vendeur requis', 403);
-    const { storeName, storeDescription, storeLogoUrl, storeBannerUrl } = req.body;
-    const seller = await sellerService.updateStoreProfile(req.auth.sellerId, {
-      storeName,
-      storeDescription,
-      storeLogoUrl,
-      storeBannerUrl,
-    });
+    const data = updateStoreProfileSchema.parse(req.body);
+    const seller = await sellerService.updateStoreProfile(req.auth.sellerId, data);
     res.json(seller);
   })
 );

@@ -59,6 +59,16 @@ export const sellerApplicationSchema = z.object({
   storeDescription: z.string().optional(),
 });
 
+// Correction : cette route ne validait rien du tout (seule route du projet
+// sans zod), permettant un storeName vide ou des URLs de logo/bannière
+// arbitraires envoyées telles quelles au frontend.
+export const updateStoreProfileSchema = z.object({
+  storeName: z.string().min(3, 'Le nom de la boutique doit contenir au moins 3 caractères').max(60).optional(),
+  storeDescription: z.string().max(1000).optional(),
+  storeLogoUrl: z.string().url('URL de logo invalide').optional(),
+  storeBannerUrl: z.string().url('URL de bannière invalide').optional(),
+});
+
 export const bulkImportSchema = z.object({
   source: z.enum(['ALIBABA_1688', 'TAOBAO', 'PINDUODUO', 'MANUAL', 'CSV_UPLOAD']),
   rows: z

@@ -6,6 +6,7 @@ const nextConfig = {
       { protocol: 'https', hostname: '**.bunnycdn.com' },
       { protocol: 'https', hostname: '**.b-cdn.net' },
       { protocol: 'https', hostname: '**.s3.amazonaws.com' },
+      { protocol: 'https', hostname: 'res.cloudinary.com' },
       { protocol: 'https', hostname: '**.alicdn.com' },
       { protocol: 'https', hostname: 'images.unsplash.com' },
       { protocol: 'https', hostname: 'mock-cdn.ridia-store.com' },

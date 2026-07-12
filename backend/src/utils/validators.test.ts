@@ -6,6 +6,7 @@ import {
   createCouponSchema,
   addressSchema,
   resetPasswordSchema,
+  updateStoreProfileSchema,
 } from './validators';
 
 describe('registerSchema', () => {
@@ -140,5 +141,31 @@ describe('resetPasswordSchema', () => {
   it('rejette un nouveau mot de passe trop court', () => {
     const result = resetPasswordSchema.safeParse({ token: 'abc', newPassword: '123' });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('updateStoreProfileSchema - correction (route sans aucune validation avant)', () => {
+  it('accepte une mise à jour valide', () => {
+    const result = updateStoreProfileSchema.safeParse({
+      storeName: 'Ma boutique',
+      storeDescription: 'Vêtements et accessoires',
+      storeLogoUrl: 'https://res.cloudinary.com/demo/logo.jpg',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejette un nom de boutique vide/trop court', () => {
+    const result = updateStoreProfileSchema.safeParse({ storeName: 'ab' });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejette une URL de logo invalide (avant : n'importe quelle chaîne était acceptée)", () => {
+    const result = updateStoreProfileSchema.safeParse({ storeLogoUrl: 'pas-une-url' });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepte un objet vide (mise à jour partielle)', () => {
+    const result = updateStoreProfileSchema.safeParse({});
+    expect(result.success).toBe(true);
   });
 });
