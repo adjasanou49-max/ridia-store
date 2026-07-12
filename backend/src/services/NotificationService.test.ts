@@ -11,7 +11,7 @@ jest.mock('../config/redis', () => ({
   redisConnection: { publish: jest.fn().mockResolvedValue(undefined) },
 }));
 jest.mock('../integrations/notifications/WhatsAppAdapter', () => ({
-  whatsAppAdapter: { sendTextMessage: jest.fn().mockResolvedValue(undefined) },
+  whatsAppAdapter: { sendTextMessage: jest.fn().mockResolvedValue({ success: true }) },
 }));
 jest.mock('../integrations/notifications/SendGridAdapter', () => ({
   sendGridAdapter: {

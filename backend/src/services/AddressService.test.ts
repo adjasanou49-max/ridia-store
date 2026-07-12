@@ -23,6 +23,7 @@ const mockedPrisma = prisma as unknown as {
     create: jest.Mock;
     update: jest.Mock;
   };
+  $transaction: jest.Mock;
 };
 
 const baseInput = {
