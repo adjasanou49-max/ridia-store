@@ -12,6 +12,7 @@ import reviewRoutes from './review.routes';
 import notificationRoutes from './notification.routes';
 import scrapeImportRoutes from './scrapeImport.routes';
 import orderFulfillmentRoutes from './orderFulfillment.routes';
+import walletRoutes from './wallet.routes';
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use('/reviews', reviewRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/scrape-import', scrapeImportRoutes);
 router.use('/order-fulfillment', orderFulfillmentRoutes);
+router.use('/wallet', walletRoutes);
 
 export default router;

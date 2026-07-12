@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import { OrderStatus, PaymentProvider } from '@prisma/client';
+import { OrderStatus, PaymentProvider, WalletTransactionType } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { logger } from '../config/logger';
@@ -9,6 +9,7 @@ import { productService } from './ProductService';
 import { loyaltyService } from './LoyaltyService';
 import { referralService } from './ReferralService';
 import { couponService } from './CouponService';
+import { walletService } from './WalletService';
 
 const STOCK_RESERVATION_MINUTES = 30;
 
@@ -116,7 +117,8 @@ export class OrderService {
     customerPhone: string,
     customerName: string,
     couponCode?: string,
-    pointsToRedeem?: number
+    pointsToRedeem?: number,
+    walletAmountToUse?: number
   ) {
     const cartItems = await prisma.cartItem.findMany({
       where: { userId },
@@ -160,6 +162,16 @@ export class OrderService {
     }
 
     const totalXof = Math.max(0, subtotalXof + shippingFeeXof - discountXof);
+
+    // Wallet optionnel - réduit le montant réellement à charger au prestataire
+    // de paiement (voire l'annule complètement si le solde couvre tout).
+    // Débité seulement après création réussie de la commande, jamais avant.
+    let walletAmountToActuallyUse = 0;
+    if (walletAmountToUse && walletAmountToUse > 0) {
+      const walletBalance = await walletService.getBalance(userId);
+      walletAmountToActuallyUse = Math.min(walletAmountToUse, walletBalance, totalXof);
+    }
+    const amountToChargeProvider = totalXof - walletAmountToActuallyUse;
 
     const orderNumber = `RID-${new Date().getFullYear()}-${nanoid(6).toUpperCase()}`;
 
@@ -238,11 +250,53 @@ export class OrderService {
       await loyaltyService.redeemPoints(userId, pointsToActuallyRedeem);
     }
 
+    if (walletAmountToActuallyUse > 0) {
+      await walletService.debit(
+        userId,
+        walletAmountToActuallyUse,
+        WalletTransactionType.DEBIT_ORDER_PAYMENT,
+        `Paiement commande ${orderNumber}`,
+        order.id
+      );
+    }
+
+    // Le wallet couvre la totalité du restant dû - aucun paiement externe à
+    // initier, la commande est confirmée directement.
+    if (amountToChargeProvider <= 0) {
+      await prisma.$transaction([
+        prisma.order.update({
+          where: { id: order.id },
+          data: {
+            status: OrderStatus.CONFIRMED,
+            statusHistory: { create: { status: OrderStatus.CONFIRMED, note: 'Payée intégralement par le wallet' } },
+          },
+        }),
+        prisma.payment.create({
+          data: {
+            orderId: order.id,
+            provider: paymentProvider,
+            amountXof: 0,
+            providerTxnId: `WALLET-${order.id}`,
+            status: 'SUCCEEDED',
+            paidAt: new Date(),
+          },
+        }),
+      ]);
+
+      await notificationQueue.add('order-confirmed', {
+        userId,
+        orderNumber,
+        totalXof: 0,
+      });
+
+      return { order, paymentUrl: null, providerTxnId: null };
+    }
+
     // Initiate payment
     const adapter = getPaymentAdapter(paymentProvider);
     const paymentResult = await adapter.initiatePayment({
       orderId: order.id,
-      amountXof: totalXof,
+      amountXof: amountToChargeProvider,
       customerPhone,
       customerName,
       description: `Commande Ridia Store ${orderNumber}`,
@@ -252,7 +306,7 @@ export class OrderService {
       data: {
         orderId: order.id,
         provider: paymentProvider,
-        amountXof: totalXof,
+        amountXof: amountToChargeProvider,
         providerTxnId: paymentResult.providerTxnId,
         status: paymentResult.success ? 'PROCESSING' : 'FAILED',
       },
@@ -475,15 +529,18 @@ export class OrderService {
     });
 
     // Remboursement réel hors transaction (appel externe au prestataire) - la
-    // commande est déjà annulée dans tous les cas ; si le remboursement échoue,
-    // l'erreur est journalisée pour un traitement manuel plutôt que de bloquer
-    // l'annulation elle-même.
+    // commande est déjà annulée dans tous les cas ; si le remboursement échoue
+    // ou n'est pas disponible pour ce prestataire (ex: Orange Money, désactivé
+    // temporairement), le montant est crédité au wallet du client en solution
+    // de secours plutôt que de laisser l'argent simplement perdu pour lui.
     if (paymentToRefund?.providerTxnId) {
+      let refunded = false;
       try {
         const adapter = getPaymentAdapter(paymentToRefund.provider);
         const result = await adapter.refundPayment(paymentToRefund.providerTxnId, Number(order.totalXof));
         if (result.success) {
           await prisma.payment.update({ where: { id: paymentToRefund.id }, data: { status: 'REFUNDED' } });
+          refunded = true;
         } else {
           logger.error('Remboursement automatique échoué côté prestataire (annulation)', {
             orderId,
@@ -495,6 +552,11 @@ export class OrderService {
           orderId,
           error: err.message,
         });
+      }
+
+      if (!refunded) {
+        await walletService.refundOrderToWallet(userId, orderId, Number(order.totalXof), order.orderNumber);
+        await prisma.payment.update({ where: { id: paymentToRefund.id }, data: { status: 'REFUNDED' } });
       }
     }
   }

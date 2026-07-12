@@ -42,10 +42,16 @@ export default function CheckoutPage() {
   const [couponError, setCouponError] = useState<string | null>(null);
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [usePoints, setUsePoints] = useState(false);
+  const [useWallet, setUseWallet] = useState(false);
 
   const { data: loyalty } = useQuery({
     queryKey: ['loyalty'],
     queryFn: async () => (await api.get<{ pointsBalance: number }>('/auth/loyalty')).data,
+  });
+
+  const { data: wallet } = useQuery({
+    queryKey: ['wallet'],
+    queryFn: async () => (await api.get<{ balanceXof: number }>('/wallet')).data,
   });
 
   const { data: paymentMethodsData } = useQuery({
@@ -90,7 +96,9 @@ export default function CheckoutPage() {
   // peuvent jamais dépasser ce qu'il reste à payer après la remise du coupon.
   const remainingAfterCoupon = Math.max(0, subtotal - discountXof);
   const pointsToRedeem = usePoints ? Math.min(loyalty?.pointsBalance ?? 0, remainingAfterCoupon) : 0;
-  const totalDiscount = discountXof + pointsToRedeem;
+  const remainingAfterPoints = Math.max(0, remainingAfterCoupon - pointsToRedeem);
+  const walletAmountToUse = useWallet ? Math.min(wallet?.balanceXof ?? 0, remainingAfterPoints) : 0;
+  const totalDiscount = discountXof + pointsToRedeem + walletAmountToUse;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -110,6 +118,7 @@ export default function CheckoutPage() {
         customerName,
         couponCode: discountXof > 0 ? couponCode : undefined,
         pointsToRedeem: pointsToRedeem > 0 ? pointsToRedeem : undefined,
+        walletAmountToUse: walletAmountToUse > 0 ? walletAmountToUse : undefined,
       });
       await refresh();
 
@@ -284,6 +293,25 @@ export default function CheckoutPage() {
             {usePoints && (
               <p className="text-xs text-green-600 mt-2">
                 ✅ {formatXof(pointsToRedeem)} de remise supplémentaire
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Solde wallet (remboursements reçus, gestes commerciaux) */}
+        {wallet && wallet.balanceXof > 0 && (
+          <div className="bg-white p-5 rounded-xl border border-gray-100">
+            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useWallet}
+                onChange={(e) => setUseWallet(e.target.checked)}
+              />
+              Utiliser mon solde wallet ({formatXof(wallet.balanceXof)} disponible)
+            </label>
+            {useWallet && (
+              <p className="text-xs text-green-600 mt-2">
+                ✅ {formatXof(walletAmountToUse)} payé depuis ton wallet
               </p>
             )}
           </div>

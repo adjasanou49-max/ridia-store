@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { ShoppingCart, User, Menu, X, LayoutDashboard, Store, Settings, ChevronDown, Heart, MapPin } from 'lucide-react';
+import { ShoppingCart, User, Menu, X, LayoutDashboard, Store, Settings, ChevronDown, Heart, MapPin, Wallet } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useCart } from '@/lib/cart';
 import { useCurrency } from '@/lib/currency';
@@ -135,6 +135,13 @@ export function Navbar() {
                   >
                     <ShoppingCart size={15} /> Mes commandes
                   </Link>
+                  <Link
+                    href="/account/wallet"
+                    onClick={() => setAccountMenuOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <Wallet size={15} /> Mon Wallet
+                  </Link>
                   <div className="border-t border-gray-100 my-1" />
                   <button
                     onClick={() => {
@@ -177,6 +184,11 @@ export function Navbar() {
           {user && (
             <Link href="/orders" onClick={() => setMenuOpen(false)}>
               Mes commandes
+            </Link>
+          )}
+          {user && (
+            <Link href="/account/wallet" onClick={() => setMenuOpen(false)}>
+              Mon Wallet
             </Link>
           )}
           {isSeller && (

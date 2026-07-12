@@ -32,3 +32,17 @@ describe('OrangeMoneyAdapter.verifyPayment - correction faille critique (faux po
     );
   });
 });
+
+describe('OrangeMoneyAdapter.refundPayment - remboursement automatique désactivé', () => {
+  const adapter = new OrangeMoneyAdapter();
+
+  it('échoue proprement en mode réel plutôt que de tenter un remboursement non fiable', async () => {
+    const result = await adapter.refundPayment('txn-1', 5000);
+
+    expect(result.success).toBe(false);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('désactivé'),
+      expect.objectContaining({ providerTxnId: 'txn-1', amountXof: 5000 })
+    );
+  });
+});

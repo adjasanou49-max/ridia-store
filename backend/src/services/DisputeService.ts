@@ -1,6 +1,7 @@
 import { prisma } from '../config/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { getPaymentAdapter } from '../integrations/payments/PaymentProviderRegistry';
+import { walletService } from './WalletService';
 import { logger } from '../config/logger';
 
 export class DisputeService {
@@ -108,12 +109,20 @@ export class DisputeService {
       if (result.success) {
         await prisma.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
         await prisma.order.update({ where: { id: orderId }, data: { status: 'REFUNDED' } });
-      } else {
-        logger.error('Le remboursement a échoué côté prestataire', { orderId, provider: payment.provider });
+        return;
       }
+      logger.error('Le remboursement a échoué côté prestataire', { orderId, provider: payment.provider });
     } catch (err: any) {
       logger.error('Erreur lors du remboursement', { orderId, error: err.message });
     }
+
+    // Solution de secours : le remboursement réel n'a pas fonctionné (échec
+    // prestataire, ou prestataire sans remboursement automatique disponible,
+    // ex: Orange Money) - on crédite le wallet du client plutôt que de le
+    // laisser sans rien après une décision de remboursement déjà validée.
+    await walletService.refundOrderToWallet(order.userId, orderId, Number(order.totalXof), order.orderNumber);
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED' } });
+    await prisma.order.update({ where: { id: orderId }, data: { status: 'REFUNDED' } });
   }
 }
 

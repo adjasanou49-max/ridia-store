@@ -51,6 +51,7 @@ export const createOrderSchema = z.object({
   customerName: z.string().min(2),
   couponCode: z.string().optional(),
   pointsToRedeem: z.number().int().nonnegative().optional(),
+  walletAmountToUse: z.number().nonnegative().optional(),
 });
 
 export const sellerApplicationSchema = z.object({

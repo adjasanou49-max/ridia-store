@@ -151,6 +151,7 @@ model User {
   cartItems      CartItem[]
   notifications  Notification[]
   loyaltyAccount LoyaltyAccount?
+  wallet         Wallet?
   wishlistItems  WishlistItem[]
   reviews        Review[]
   disputes       Dispute[]
@@ -854,6 +855,47 @@ model LoyaltyTransaction {
   createdAt DateTime @default(now())
 
   @@index([accountId])
+}
+
+// ============================================================================
+// WALLET (portefeuille / solde de crédit interne)
+// ============================================================================
+// Sert de solution de secours quand un remboursement réel chez le prestataire
+// de paiement n'est pas possible (ex: Orange Money, voir OrangeMoneyAdapter),
+// et permet aussi les gestes commerciaux (compensation) et le paiement
+// partiel/total d'une commande avec le solde disponible.
+
+model Wallet {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balanceXof Decimal  @default(0) @db.Decimal(14, 2)
+
+  transactions WalletTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum WalletTransactionType {
+  CREDIT_REFUND // remboursement d'une commande annulée/en litige, viré au wallet plutôt qu'au prestataire
+  CREDIT_ADMIN // geste commercial / compensation manuelle
+  DEBIT_ORDER_PAYMENT // utilisé pour payer (en tout ou partie) une commande
+  DEBIT_ADMIN // correction manuelle
+}
+
+model WalletTransaction {
+  id          String                @id @default(uuid())
+  walletId    String
+  wallet      Wallet                @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  amountXof   Decimal               @db.Decimal(14, 2) // positif = crédit, négatif = débit
+  type        WalletTransactionType
+  reason      String
+  referenceId String? // ex: orderId, disputeId
+
+  createdAt DateTime @default(now())
+
+  @@index([walletId])
 }
 
 // ============================================================================

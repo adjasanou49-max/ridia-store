@@ -102,25 +102,24 @@ export class OrangeMoneyAdapter implements PaymentAdapter {
     return this.verifyPayment(providerTxnId);
   }
 
+  /**
+   * Remboursement automatique désactivé temporairement en mode réel : comme
+   * pour verifyPayment, l'intégration Orange Money n'a jamais été testée en
+   * conditions réelles - mieux vaut échouer proprement ici (le remboursement
+   * sera alors traité manuellement, voir le log d'erreur remonté dans
+   * OrderService.cancelOrder / DisputeService.triggerRefund) que de tenter un
+   * appel non fiable qui pourrait échouer silencieusement ou mal fonctionner
+   * avec de l'argent réel.
+   */
   async refundPayment(providerTxnId: string, amountXof: number): Promise<RefundResult> {
     if (this.isMock) {
       logger.info('[Orange Money MOCK] Refunding payment', { providerTxnId, amountXof });
       return { success: true, refundId: `refund-mock-${providerTxnId}` };
     }
-    try {
-      // Correction bug : le jeton d'authentification manquait ici (présent
-      // sur initiatePayment mais oublié sur ce remboursement) - la requête
-      // aurait systématiquement échoué avec une erreur 401 en production.
-      const token = await this.getAccessToken();
-      const response = await axios.post(
-        `https://api.orange.com/orange-money-webpay/refund`,
-        { order_id: providerTxnId, amount: amountXof },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      return { success: true, raw: response.data };
-    } catch (err: any) {
-      logger.error('Orange Money refund error', { error: err.message });
-      return { success: false };
-    }
+    logger.warn(
+      'Remboursement automatique Orange Money désactivé (intégration non finalisée) - traitement manuel requis',
+      { providerTxnId, amountXof }
+    );
+    return { success: false };
   }
 }

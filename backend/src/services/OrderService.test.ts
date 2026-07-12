@@ -31,6 +31,13 @@ jest.mock('./LoyaltyService', () => ({
   loyaltyService: { getOrCreateAccount: jest.fn(), redeemPoints: jest.fn() },
 }));
 jest.mock('./ReferralService', () => ({ referralService: {} }));
+jest.mock('./WalletService', () => ({
+  walletService: {
+    getBalance: jest.fn().mockResolvedValue(0),
+    debit: jest.fn().mockResolvedValue(0),
+    refundOrderToWallet: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 jest.mock('./CouponService', () => ({
   couponService: { validate: jest.fn(), recordUsage: jest.fn() },
 }));
