@@ -4,6 +4,7 @@ import { env } from '../config/env';
 import { prisma } from '../config/prisma';
 import { logger } from '../config/logger';
 import { productService } from '../services/ProductService';
+import { orderService } from '../services/OrderService';
 import { reviewService } from '../services/ReviewService';
 import { categorySuggestionAgent } from '../integrations/ai/CategorySuggestionAgent';
 import { notificationService } from '../services/NotificationService';
@@ -156,5 +157,18 @@ setInterval(async () => {
     logger.error('Erreur application hausses de prix', { error: err.message });
   }
 }, 60_000);
+
+// ---------------- Libération des réservations de stock expirées (paniers abandonnés) ----------------
+// Correction bug : les réservations de stock au panier (30 min par défaut)
+// n'étaient jamais vérifiées après leur expiration - le stock d'un panier
+// abandonné restait réservé indéfiniment. Vérifié toutes les 5 minutes.
+setInterval(async () => {
+  try {
+    const count = await orderService.releaseExpiredReservations();
+    if (count > 0) logger.info(`Réservations de stock expirées libérées: ${count} article(s)`);
+  } catch (err: any) {
+    logger.error('Erreur libération des réservations expirées', { error: err.message });
+  }
+}, 5 * 60_000);
 
 logger.info('🔄 Workers started: product-import, notifications');

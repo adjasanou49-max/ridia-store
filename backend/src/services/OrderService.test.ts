@@ -2,7 +2,7 @@ jest.mock('nanoid', () => ({ nanoid: () => 'ABC123' }));
 
 jest.mock('../config/prisma', () => {
   const mockPrisma: any = {
-    product: { findUnique: jest.fn(), update: jest.fn() },
+    product: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     cartItem: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), upsert: jest.fn(), delete: jest.fn(), deleteMany: jest.fn() },
     order: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
     orderItem: { updateMany: jest.fn() },
@@ -281,6 +281,47 @@ describe('OrderService', () => {
       expect(mockedPrisma.order.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'order4' } })
       );
+    });
+  });
+
+  describe('releaseExpiredReservations - correction bug (paniers abandonnés jamais libérés)', () => {
+    it('libère le stock et supprime chaque article panier expiré', async () => {
+      mockedPrisma.cartItem.findMany.mockResolvedValue([
+        { id: 'ci1', productId: 'p1', quantity: 3 },
+        { id: 'ci2', productId: 'p2', quantity: 1 },
+      ]);
+      mockedPrisma.product.updateMany.mockResolvedValue({ count: 1 });
+      mockedPrisma.cartItem.delete.mockResolvedValue({});
+
+      const released = await service.releaseExpiredReservations();
+
+      expect(released).toBe(2);
+      expect(mockedPrisma.product.updateMany).toHaveBeenCalledWith({
+        where: { id: 'p1', reservedStock: { gte: 3 } },
+        data: { reservedStock: { decrement: 3 } },
+      });
+      expect(mockedPrisma.cartItem.delete).toHaveBeenCalledWith({ where: { id: 'ci1' } });
+      expect(mockedPrisma.cartItem.delete).toHaveBeenCalledWith({ where: { id: 'ci2' } });
+    });
+
+    it("ne fait rien s'il n'y a aucune réservation expirée", async () => {
+      mockedPrisma.cartItem.findMany.mockResolvedValue([]);
+
+      const released = await service.releaseExpiredReservations();
+
+      expect(released).toBe(0);
+      expect(mockedPrisma.cartItem.delete).not.toHaveBeenCalled();
+    });
+
+    it("filtre bien sur expiresAt < maintenant", async () => {
+      mockedPrisma.cartItem.findMany.mockResolvedValue([]);
+
+      await service.releaseExpiredReservations();
+
+      expect(mockedPrisma.cartItem.findMany).toHaveBeenCalledWith({
+        where: { expiresAt: { lt: expect.any(Date) } },
+        select: { id: true, productId: true, quantity: true },
+      });
     });
   });
 });

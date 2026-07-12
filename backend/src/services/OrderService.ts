@@ -398,6 +398,36 @@ export class OrderService {
     return order;
   }
 
+  /**
+   * Libère le stock des articles panier dont la réservation a expiré (30
+   * minutes par défaut - voir STOCK_RESERVATION_MINUTES) sans avoir été
+   * achetés. Correction bug : `expiresAt` était posé sur chaque réservation
+   * mais rien ne le vérifiait jamais - le stock d'un panier abandonné restait
+   * réservé indéfiniment, réduisant artificiellement le stock disponible au
+   * fil du temps. Appelée périodiquement par une tâche planifiée (voir
+   * cartCleanupQueue).
+   */
+  async releaseExpiredReservations(): Promise<number> {
+    const expired = await prisma.cartItem.findMany({
+      where: { expiresAt: { lt: new Date() } },
+      select: { id: true, productId: true, quantity: true },
+    });
+
+    for (const item of expired) {
+      // decrement borné à 0 : si le stock a déjà été corrigé manuellement
+      // entre-temps, on ne veut jamais passer en négatif.
+      await prisma.$transaction([
+        prisma.product.updateMany({
+          where: { id: item.productId, reservedStock: { gte: item.quantity } },
+          data: { reservedStock: { decrement: item.quantity } },
+        }),
+        prisma.cartItem.delete({ where: { id: item.id } }),
+      ]);
+    }
+
+    return expired.length;
+  }
+
   private calculateShippingFee(itemCount: number): number {
     // Simple flat + per-item model; refine with real carrier rates later
     const base = 2000; // XOF
