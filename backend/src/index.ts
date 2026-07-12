@@ -50,8 +50,41 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 // ---------------- Start server ----------------
-app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, () => {
   logger.info(`🚀 Ridia Store API démarré sur le port ${env.PORT} (${env.NODE_ENV})`);
 });
+
+/**
+ * Arrêt propre : Railway (et la plupart des hébergeurs) envoient SIGTERM
+ * avant de tuer le processus lors d'un redéploiement. Sans ce gestionnaire,
+ * les requêtes en cours sont coupées brutalement et la connexion à la base
+ * de données n'est jamais fermée proprement (risque de connexions
+ * fantômes qui s'accumulent au fil des déploiements).
+ */
+async function gracefulShutdown(signal: string) {
+  logger.info(`${signal} reçu - arrêt propre en cours...`);
+
+  // Arrête d'accepter de nouvelles connexions, laisse les requêtes en cours se terminer
+  server.close(async () => {
+    try {
+      const { prisma } = await import('./config/prisma');
+      await prisma.$disconnect();
+      logger.info('Connexion base de données fermée proprement');
+    } catch (err: any) {
+      logger.error('Erreur lors de la fermeture de la base de données', { error: err.message });
+    }
+    process.exit(0);
+  });
+
+  // Filet de sécurité : si des requêtes traînent trop longtemps, on force
+  // l'arrêt plutôt que de laisser Railway tuer le processus sans logs.
+  setTimeout(() => {
+    logger.error("Arrêt forcé après 10s - des requêtes n'ont pas pu se terminer à temps");
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export default app;

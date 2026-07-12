@@ -172,3 +172,26 @@ setInterval(async () => {
 }, 5 * 60_000);
 
 logger.info('🔄 Workers started: product-import, notifications');
+
+/**
+ * Arrêt propre : sans ça, un redéploiement Railway tue le processus pendant
+ * qu'une tâche est en cours de traitement (import produit en masse, envoi de
+ * notification) - `worker.close()` attend que le job en cours se termine
+ * avant de fermer, au lieu de le laisser à moitié traité.
+ */
+async function gracefulShutdown(signal: string) {
+  logger.info(`${signal} reçu - arrêt propre des workers en cours...`);
+  try {
+    await Promise.all([importWorker.close(), notificationWorker.close()]);
+    const { prisma } = await import('../config/prisma');
+    await prisma.$disconnect();
+    logger.info('Workers arrêtés proprement');
+    process.exit(0);
+  } catch (err: any) {
+    logger.error("Erreur lors de l'arrêt des workers", { error: err.message });
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
