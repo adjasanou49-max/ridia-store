@@ -61,7 +61,7 @@ export const env = {
     mode: required('SENDGRID_MODE', 'mock'),
   },
   STORAGE: {
-    provider: required('STORAGE_PROVIDER', 's3'),
+    provider: required('STORAGE_PROVIDER', 's3'), // "s3", "bunny" ou "cloudinary"
     s3AccessKey: required('AWS_S3_ACCESS_KEY'),
     s3SecretKey: required('AWS_S3_SECRET_KEY'),
     s3Bucket: required('AWS_S3_BUCKET', 'ridia-store-images'),
@@ -69,6 +69,9 @@ export const env = {
     bunnyApiKey: required('BUNNY_API_KEY'),
     bunnyStorageZone: required('BUNNY_STORAGE_ZONE'),
     bunnyPullZoneUrl: required('BUNNY_PULL_ZONE_URL'),
+    cloudinaryCloudName: required('CLOUDINARY_CLOUD_NAME'),
+    cloudinaryApiKey: required('CLOUDINARY_API_KEY'),
+    cloudinaryApiSecret: required('CLOUDINARY_API_SECRET'),
   },
   CONNECTORS: {
     alibaba1688Mode: required('ALIBABA_1688_MODE', 'manual'),

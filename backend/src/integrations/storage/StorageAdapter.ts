@@ -44,7 +44,7 @@ class S3Storage {
 }
 
 class BunnyStorage {
-  async upload(buffer: Buffer, filename: string): Promise<string> {
+  async upload(buffer: Buffer, filename: string, _contentType?: string): Promise<string> {
     if (!env.STORAGE.bunnyApiKey) {
       logger.info('[Bunny MOCK] Upload skipped, no credentials configured', { filename });
       return `https://mock-cdn.ridia-store.com/${filename}`;
@@ -68,14 +68,70 @@ class BunnyStorage {
   }
 }
 
+class CloudinaryStorage {
+  private get isConfigured() {
+    return Boolean(env.STORAGE.cloudinaryCloudName && env.STORAGE.cloudinaryApiKey);
+  }
+
+  private async getClient() {
+    // Import paresseux : évite de charger le SDK Cloudinary (et de valider sa
+    // config au démarrage) quand un autre fournisseur de stockage est utilisé.
+    const { v2: cloudinary } = await import('cloudinary');
+    cloudinary.config({
+      cloud_name: env.STORAGE.cloudinaryCloudName,
+      api_key: env.STORAGE.cloudinaryApiKey,
+      api_secret: env.STORAGE.cloudinaryApiSecret,
+    });
+    return cloudinary;
+  }
+
+  async upload(buffer: Buffer, filename: string, _contentType?: string): Promise<string> {
+    if (!this.isConfigured) {
+      logger.info('[Cloudinary MOCK] Upload skipped, no credentials configured', { filename });
+      return `https://mock-cdn.ridia-store.com/${filename}`;
+    }
+
+    const cloudinary = await this.getClient();
+    const publicId = `products/${Date.now()}-${nanoid(8)}`;
+
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { public_id: publicId, resource_type: 'image' },
+        (error, result) => {
+          if (error || !result) return reject(error || new Error('Échec upload Cloudinary'));
+          resolve(result.secure_url);
+        }
+      );
+      uploadStream.end(buffer);
+    });
+  }
+
+  async delete(url: string): Promise<void> {
+    if (!this.isConfigured) return;
+    // L'URL Cloudinary contient le public_id entre la version (/v12345/) et
+    // l'extension de fichier - on l'extrait pour pouvoir demander la suppression.
+    const match = url.match(/\/upload\/(?:v\d+\/)?(.+)\.\w+$/);
+    if (!match) {
+      logger.error('Impossible d\'extraire le public_id Cloudinary pour suppression', { url });
+      return;
+    }
+    const cloudinary = await this.getClient();
+    await cloudinary.uploader.destroy(match[1]);
+  }
+}
+
 const s3Storage = new S3Storage();
 const bunnyStorage = new BunnyStorage();
+const cloudinaryStorage = new CloudinaryStorage();
+
+function getActiveStorage() {
+  if (env.STORAGE.provider === 'bunny') return bunnyStorage;
+  if (env.STORAGE.provider === 'cloudinary') return cloudinaryStorage;
+  return s3Storage;
+}
 
 export const storageAdapter = {
   upload: (buffer: Buffer, filename: string, contentType: string): Promise<string> =>
-    env.STORAGE.provider === 'bunny'
-      ? bunnyStorage.upload(buffer, filename)
-      : s3Storage.upload(buffer, filename, contentType),
-  delete: (url: string): Promise<void> =>
-    env.STORAGE.provider === 'bunny' ? bunnyStorage.delete(url) : s3Storage.delete(url),
+    getActiveStorage().upload(buffer, filename, contentType),
+  delete: (url: string): Promise<void> => getActiveStorage().delete(url),
 };
