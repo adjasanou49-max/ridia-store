@@ -380,6 +380,23 @@ router.get(
   })
 );
 
+/**
+ * Correction : LoyaltyService.computeTier fait un .find() dans l'ordre du
+ * tableau - si les paliers ne sont pas strictement décroissants (erreur de
+ * saisie admin), un client pourrait se voir attribuer le mauvais palier
+ * (ex: "argent" avant "or" alors qu'il a assez de points pour "or").
+ */
+export function validateTierThresholdsOrder(
+  thresholds: { tier: string; minPoints: number }[]
+): string | null {
+  for (let i = 1; i < thresholds.length; i++) {
+    if (thresholds[i].minPoints >= thresholds[i - 1].minPoints) {
+      return `Les paliers de fidélité doivent être strictement décroissants (problème entre "${thresholds[i - 1].tier}" et "${thresholds[i].tier}")`;
+    }
+  }
+  return null;
+}
+
 router.patch(
   '/settings',
   authorize(UserRole.SUPER_ADMIN),
@@ -394,6 +411,11 @@ router.patch(
       loyaltyReferralBonusPoints,
       loyaltyTierThresholds,
     } = req.body;
+
+    if (Array.isArray(loyaltyTierThresholds)) {
+      const error = validateTierThresholdsOrder(loyaltyTierThresholds);
+      if (error) throw new AppError(error, 422);
+    }
 
     await prisma.$transaction([
       prisma.systemSetting.upsert({
