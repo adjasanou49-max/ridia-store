@@ -70,7 +70,7 @@ export class AuthService {
   async refreshAccessToken(refreshToken: string): Promise<TokenPair> {
     let payload: { userId: string };
     try {
-      payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as { userId: string };
+      payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET, { algorithms: ['HS256'] }) as { userId: string };
     } catch {
       throw new AppError('Refresh token invalide ou expiré', 401);
     }
@@ -186,7 +186,7 @@ export class AuthService {
   async resetPassword(token: string, newPassword: string) {
     let payload: { userId: string; purpose: string };
     try {
-      payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as typeof payload;
+      payload = jwt.verify(token, env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] }) as typeof payload;
     } catch {
       throw new AppError('Lien de réinitialisation invalide ou expiré', 401);
     }
@@ -220,7 +220,7 @@ export class AuthService {
   async verifyEmail(token: string) {
     let payload: { userId: string; purpose: string };
     try {
-      payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as typeof payload;
+      payload = jwt.verify(token, env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] }) as typeof payload;
     } catch {
       throw new AppError('Lien de vérification invalide ou expiré', 401);
     }

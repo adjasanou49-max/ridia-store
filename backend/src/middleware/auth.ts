@@ -9,6 +9,21 @@ export interface AuthPayload {
   sellerId?: string;
 }
 
+/**
+ * Les tokens de réinitialisation de mot de passe et de vérification d'email
+ * (voir AuthService.forgotPassword/sendEmailVerification) sont signés avec le
+ * même secret que les tokens de session, mais NE DOIVENT JAMAIS servir de
+ * jeton d'authentification générale - ils contiennent un champ `purpose` que
+ * les vrais tokens de session n'ont jamais. Sans ce contrôle, un token de
+ * réinitialisation (valable 1h, souvent transmis par email/URL, donc plus
+ * exposé) pourrait être rejoué comme un token de session normal sur
+ * n'importe quelle route protégée par `authenticate` seul (sans vérification
+ * de rôle), usurpant l'identité du titulaire pendant sa durée de validité.
+ */
+function isSessionToken(payload: any): payload is AuthPayload {
+  return typeof payload === 'object' && payload !== null && !payload.purpose && !!payload.role;
+}
+
 declare global {
   namespace Express {
     interface Request {
@@ -25,7 +40,10 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
 
   const token = header.split(' ')[1];
   try {
-    const payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as AuthPayload;
+    const payload = jwt.verify(token, env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
+    if (!isSessionToken(payload)) {
+      return res.status(401).json({ error: 'Token invalide ou expiré' });
+    }
     req.auth = payload;
     next();
   } catch (err) {
@@ -45,7 +63,10 @@ export function authenticateViaQueryToken(req: Request, res: Response, next: Nex
     return res.status(401).json({ error: 'Authentification requise' });
   }
   try {
-    const payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as AuthPayload;
+    const payload = jwt.verify(token, env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
+    if (!isSessionToken(payload)) {
+      return res.status(401).json({ error: 'Token invalide ou expiré' });
+    }
     req.auth = payload;
     next();
   } catch {
@@ -71,7 +92,10 @@ export function optionalAuthenticate(req: Request, _res: Response, next: NextFun
   if (header && header.startsWith('Bearer ')) {
     const token = header.split(' ')[1];
     try {
-      req.auth = jwt.verify(token, env.JWT_ACCESS_SECRET) as AuthPayload;
+      const payload = jwt.verify(token, env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] });
+      if (isSessionToken(payload)) {
+        req.auth = payload;
+      }
     } catch {
       // ignore invalid token, treat as anonymous
     }
