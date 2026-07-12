@@ -871,16 +871,8 @@ model Wallet {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   balanceXof Decimal  @default(0) @db.Decimal(14, 2)
 
-  // Sous-ensemble de balanceXof qui peut être retiré en argent réel (dépôts
-  // du client + remboursements). Les crédits admin/bonus ne sont JAMAIS
-  // retirables - utilisables uniquement pour payer des commandes. Une dépense
-  // consomme toujours le non-retirable en premier (préserve l'argent réel du
-  // client le plus longtemps possible) - voir WalletService.debit.
-  withdrawableBalanceXof Decimal @default(0) @db.Decimal(14, 2)
-
-  transactions        WalletTransaction[]
-  withdrawalRequests  WalletWithdrawalRequest[]
-  topUps              WalletTopUp[]
+  transactions WalletTransaction[]
+  topUps       WalletTopUp[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -903,40 +895,15 @@ model WalletTopUp {
   @@index([walletId])
 }
 
+// Le wallet est un solde de crédit interne uniquement : dépôts, remboursements
+// et bonus alimentent le même solde, jamais retirable en argent réel -
+// utilisable exclusivement pour payer des commandes sur Ridia Store.
 enum WalletTransactionType {
-  CREDIT_TOPUP // dépôt du client par mobile money/carte - retirable
-  CREDIT_REFUND // remboursement d'une commande annulée/en litige - retirable
-  CREDIT_ADMIN // geste commercial / bonus - jamais retirable, dépensable seulement
+  CREDIT_TOPUP // dépôt du client par mobile money/carte
+  CREDIT_REFUND // remboursement d'une commande annulée/en litige
+  CREDIT_ADMIN // geste commercial / bonus
   DEBIT_ORDER_PAYMENT // utilisé pour payer (en tout ou partie) une commande
   DEBIT_ADMIN // correction manuelle
-  DEBIT_WITHDRAWAL // retrait demandé par le client (voir WalletWithdrawalRequest)
-}
-
-enum WalletWithdrawalStatus {
-  PENDING // en attente de traitement manuel par l'équipe
-  COMPLETED // argent réellement envoyé au client (marqué manuellement par un admin)
-  REJECTED // refusée (ex: suspicion de fraude) - le solde est recrédité
-}
-
-// Le versement réel reste manuel (voir WalletService.requestWithdrawal) tant
-// qu'il n'existe pas d'intégration testée d'envoi d'argent réel chez les
-// prestataires - un admin traite la demande depuis son propre compte
-// marchand Wave/Orange/MTN puis marque la demande comme complétée ici.
-model WalletWithdrawalRequest {
-  id             String                  @id @default(uuid())
-  walletId       String
-  wallet         Wallet                  @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  amountXof      Decimal                 @db.Decimal(14, 2)
-  phoneNumber    String // numéro mobile money où envoyer l'argent
-  status         WalletWithdrawalStatus  @default(PENDING)
-  adminNote      String?
-  processedBy    String?
-  processedAt    DateTime?
-
-  createdAt DateTime @default(now())
-
-  @@index([walletId])
-  @@index([status])
 }
 
 model WalletTransaction {

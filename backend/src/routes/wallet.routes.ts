@@ -11,11 +11,11 @@ router.use(authenticate);
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const [balance, transactions] = await Promise.all([
+    const [balanceXof, transactions] = await Promise.all([
       walletService.getBalance(req.auth!.userId),
       walletService.getHistory(req.auth!.userId),
     ]);
-    res.json({ ...balance, transactions });
+    res.json({ balanceXof, transactions });
   })
 );
 
@@ -38,20 +38,6 @@ router.post(
       data.name
     );
     res.status(201).json(result);
-  })
-);
-
-const withdrawSchema = z.object({
-  amountXof: z.number().positive(),
-  phoneNumber: z.string().min(8),
-});
-
-router.post(
-  '/withdraw',
-  asyncHandler(async (req, res) => {
-    const data = withdrawSchema.parse(req.body);
-    const request = await walletService.requestWithdrawal(req.auth!.userId, data.amountXof, data.phoneNumber);
-    res.status(201).json(request);
   })
 );
 
