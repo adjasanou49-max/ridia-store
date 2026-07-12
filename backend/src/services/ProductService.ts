@@ -151,6 +151,23 @@ export class ProductService {
   }
 
   async createProduct(input: CreateProductInput) {
+    // Correction bug critique : costPriceCny à 0 (ligne CSV mal formée, colonne
+    // vide/décalée) était traité comme "absent" par le `? :` ci-dessous,
+    // aboutissant à un produit PUBLIÉ À 0 FCFA sans aucune erreur ni
+    // avertissement - un vrai risque financier pour un import en masse.
+    if (input.costPriceCny != null && input.costPriceCny <= 0) {
+      throw new AppError(
+        `Coût CNY invalide (${input.costPriceCny}) pour "${input.name}" - doit être strictement positif`,
+        422
+      );
+    }
+    if (input.basePriceXof == null && input.costPriceCny == null) {
+      throw new AppError(
+        `Aucun prix ni coût CNY fourni pour "${input.name}" - impossible de calculer un prix de vente`,
+        422
+      );
+    }
+
     const rate = await this.getCurrentExchangeRate();
     const costPriceXof = input.costPriceCny ? input.costPriceCny * rate : undefined;
 
