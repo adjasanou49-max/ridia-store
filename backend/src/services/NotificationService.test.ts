@@ -1,7 +1,15 @@
 jest.mock('../config/prisma', () => ({
-  prisma: { user: { findUnique: jest.fn() } },
+  prisma: {
+    user: { findUnique: jest.fn() },
+    notification: {
+      create: jest.fn().mockResolvedValue({ id: 'notif-1' }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+  },
 }));
-jest.mock('../config/redis', () => ({ redisConnection: { publish: jest.fn() } }));
+jest.mock('../config/redis', () => ({
+  redisConnection: { publish: jest.fn().mockResolvedValue(undefined) },
+}));
 jest.mock('../integrations/notifications/WhatsAppAdapter', () => ({
   whatsAppAdapter: { sendTextMessage: jest.fn().mockResolvedValue(undefined) },
 }));
