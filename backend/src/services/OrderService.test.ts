@@ -4,7 +4,8 @@ jest.mock('../config/prisma', () => {
   const mockPrisma: any = {
     product: { findUnique: jest.fn(), update: jest.fn() },
     cartItem: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), upsert: jest.fn(), delete: jest.fn(), deleteMany: jest.fn() },
-    order: { create: jest.fn(), update: jest.fn() },
+    order: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
+    orderItem: { updateMany: jest.fn() },
     payment: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
   };
   mockPrisma.$transaction = jest.fn((arg: any) =>
@@ -13,6 +14,9 @@ jest.mock('../config/prisma', () => {
   mockPrisma.$executeRaw = jest.fn();
   return { prisma: mockPrisma };
 });
+jest.mock('../config/logger', () => ({
+  logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn() },
+}));
 
 jest.mock('../integrations/payments/PaymentProviderRegistry', () => ({
   getPaymentAdapter: jest.fn(),
@@ -177,6 +181,84 @@ describe('OrderService', () => {
       await service.confirmPayment('txn1');
 
       expect(mockedPrisma.$transaction).toHaveBeenCalled();
+    });
+  });
+
+  describe('cancelOrder - correction bug critique (remboursement manquant)', () => {
+    it("déclenche un vrai remboursement quand on annule une commande déjà payée (CONFIRMED)", async () => {
+      mockedPrisma.order.findFirst.mockResolvedValue({
+        id: 'order1',
+        userId: 'u1',
+        status: 'CONFIRMED',
+        totalXof: 5000,
+        items: [{ productId: 'p1', quantity: 2 }],
+        payments: [{ id: 'pay1', providerTxnId: 'txn1', provider: 'WAVE', status: 'SUCCEEDED' }],
+      });
+      mockedGetAdapter.mockReturnValue({
+        refundPayment: jest.fn().mockResolvedValue({ success: true }),
+      });
+
+      await service.cancelOrder('order1', 'u1');
+
+      expect(mockedGetAdapter).toHaveBeenCalledWith('WAVE');
+      expect(mockedPrisma.payment.update).toHaveBeenCalledWith({
+        where: { id: 'pay1' },
+        data: { status: 'REFUNDED' },
+      });
+      // Le stock doit aussi être remis en vente
+      expect(mockedPrisma.product.update).toHaveBeenCalledWith({
+        where: { id: 'p1' },
+        data: { stockQuantity: { increment: 2 }, salesCount: { decrement: 2 } },
+      });
+    });
+
+    it("ne tente aucun remboursement pour une commande jamais payée (PENDING)", async () => {
+      mockedPrisma.order.findFirst.mockResolvedValue({
+        id: 'order2',
+        userId: 'u1',
+        status: 'PENDING',
+        totalXof: 3000,
+        items: [{ productId: 'p1', quantity: 1 }],
+        payments: [], // aucun paiement réussi
+      });
+
+      await service.cancelOrder('order2', 'u1');
+
+      expect(mockedGetAdapter).not.toHaveBeenCalled();
+      expect(mockedPrisma.payment.update).not.toHaveBeenCalled();
+    });
+
+    it('rejette si la commande est déjà expédiée ou livrée', async () => {
+      mockedPrisma.order.findFirst.mockResolvedValue({
+        id: 'order3',
+        userId: 'u1',
+        status: 'SHIPPED',
+        items: [],
+        payments: [],
+      });
+
+      await expect(service.cancelOrder('order3', 'u1')).rejects.toThrow(
+        'Cette commande ne peut plus être annulée'
+      );
+    });
+
+    it("annule quand même la commande si le remboursement échoue côté prestataire (ne bloque pas l'annulation)", async () => {
+      mockedPrisma.order.findFirst.mockResolvedValue({
+        id: 'order4',
+        userId: 'u1',
+        status: 'PROCESSING',
+        totalXof: 1000,
+        items: [{ productId: 'p1', quantity: 1 }],
+        payments: [{ id: 'pay4', providerTxnId: 'txn4', provider: 'ORANGE_MONEY', status: 'SUCCEEDED' }],
+      });
+      mockedGetAdapter.mockReturnValue({
+        refundPayment: jest.fn().mockRejectedValue(new Error('Provider indisponible')),
+      });
+
+      await expect(service.cancelOrder('order4', 'u1')).resolves.toBeUndefined();
+      expect(mockedPrisma.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'order4' } })
+      );
     });
   });
 });

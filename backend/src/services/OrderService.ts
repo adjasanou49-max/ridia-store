@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid';
 import { OrderStatus, PaymentProvider } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AppError } from '../middleware/errorHandler';
+import { logger } from '../config/logger';
 import { getPaymentAdapter } from '../integrations/payments/PaymentProviderRegistry';
 import { notificationQueue } from '../queues/notificationQueue';
 import { productService } from './ProductService';
@@ -408,10 +409,20 @@ export class OrderService {
   }
 
   /** Annulation par le client - seulement possible avant expédition, remet le stock en vente */
+  /**
+   * Correction bug critique : l'annulation d'une commande dont le paiement
+   * avait déjà réussi (statut CONFIRMED ou PROCESSING) remettait le stock en
+   * vente et marquait la commande annulée, mais ne déclenchait JAMAIS le
+   * remboursement réel chez le prestataire de paiement - l'argent du client
+   * restait débité sans qu'aucun remboursement automatique n'ait lieu.
+   */
   async cancelOrder(orderId: string, userId: string, reason?: string) {
     const order = await prisma.order.findFirst({
       where: { id: orderId, userId },
-      include: { items: true },
+      include: {
+        items: true,
+        payments: { where: { status: 'SUCCEEDED' }, orderBy: { paidAt: 'desc' }, take: 1 },
+      },
     });
     if (!order) throw new AppError('Commande non trouvée', 404);
 
@@ -422,6 +433,8 @@ export class OrderService {
         422
       );
     }
+
+    const paymentToRefund = order.payments[0];
 
     await prisma.$transaction(async (tx) => {
       // Remet le stock vendu en vente
@@ -448,6 +461,30 @@ export class OrderService {
         data: { status: 'CANCELLED' },
       });
     });
+
+    // Remboursement réel hors transaction (appel externe au prestataire) - la
+    // commande est déjà annulée dans tous les cas ; si le remboursement échoue,
+    // l'erreur est journalisée pour un traitement manuel plutôt que de bloquer
+    // l'annulation elle-même.
+    if (paymentToRefund?.providerTxnId) {
+      try {
+        const adapter = getPaymentAdapter(paymentToRefund.provider);
+        const result = await adapter.refundPayment(paymentToRefund.providerTxnId, Number(order.totalXof));
+        if (result.success) {
+          await prisma.payment.update({ where: { id: paymentToRefund.id }, data: { status: 'REFUNDED' } });
+        } else {
+          logger.error('Remboursement automatique échoué côté prestataire (annulation)', {
+            orderId,
+            provider: paymentToRefund.provider,
+          });
+        }
+      } catch (err: any) {
+        logger.error('Erreur lors du remboursement automatique (annulation)', {
+          orderId,
+          error: err.message,
+        });
+      }
+    }
   }
 
   /** Commandes contenant des articles du vendeur connecté */
