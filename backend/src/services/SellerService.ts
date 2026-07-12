@@ -97,9 +97,40 @@ export class SellerService {
     };
   }
 
+  /**
+   * Correction faille : aucune vérification n'empêchait un vendeur de
+   * demander un versement d'un montant arbitraire, sans rapport avec ce
+   * qui lui est réellement dû - la validation reposait entièrement sur un
+   * admin vérifiant manuellement avant d'approuver, ce qui n'existe même
+   * pas encore côté API. Le montant disponible est maintenant calculé et
+   * vérifié ici : somme des commandes réellement livrées, moins les
+   * versements déjà en attente ou déjà payés (jamais compté deux fois).
+   */
   async requestPayout(sellerId: string, amountXof: number, method: string, destinationRef: string) {
     const seller = await prisma.seller.findUnique({ where: { id: sellerId } });
     if (!seller) throw new AppError('Vendeur non trouvé', 404);
+
+    const [earnedAgg, alreadyRequestedAgg] = await Promise.all([
+      prisma.orderItem.aggregate({
+        where: { sellerId, status: 'DELIVERED' },
+        _sum: { sellerPayoutXof: true },
+      }),
+      prisma.payout.aggregate({
+        where: { sellerId, status: { in: ['PENDING', 'PROCESSING', 'PAID'] } },
+        _sum: { amountXof: true },
+      }),
+    ]);
+
+    const totalEarned = Number(earnedAgg._sum.sellerPayoutXof || 0);
+    const alreadyRequestedOrPaid = Number(alreadyRequestedAgg._sum.amountXof || 0);
+    const availableToRequest = totalEarned - alreadyRequestedOrPaid;
+
+    if (amountXof > availableToRequest) {
+      throw new AppError(
+        `Montant demandé supérieur à ce qui est disponible (${availableToRequest} FCFA disponibles)`,
+        422
+      );
+    }
 
     const periodEnd = new Date();
     const periodStart = new Date();
