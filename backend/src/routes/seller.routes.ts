@@ -105,7 +105,7 @@ router.get(
   authenticate,
   authorize(UserRole.SELLER),
   asyncHandler(async (req, res) => {
-    const job = await productImportService.getImportJobStatus(req.params.jobId);
+    const job = await productImportService.getImportJobStatus(req.params.jobId, req.auth!.sellerId!);
     res.json(job);
   })
 );

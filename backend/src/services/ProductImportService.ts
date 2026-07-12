@@ -53,8 +53,16 @@ export class ProductImportService {
     return job;
   }
 
-  async getImportJobStatus(jobId: string) {
-    const job = await prisma.importJob.findUnique({ where: { id: jobId } });
+  /**
+   * Correction faille IDOR : rien ne vérifiait que le job consulté appartient
+   * bien au vendeur authentifié - n'importe quel vendeur pouvait consulter le
+   * statut d'import (et le détail des erreurs) d'un autre vendeur en devinant
+   * son jobId.
+   */
+  async getImportJobStatus(jobId: string, sellerId: string) {
+    const job = await prisma.importJob.findFirst({
+      where: { id: jobId, connector: { sellerId } },
+    });
     if (!job) throw new AppError('Job d\'import non trouvé', 404);
     return job;
   }
