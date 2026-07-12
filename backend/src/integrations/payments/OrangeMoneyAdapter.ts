@@ -72,12 +72,29 @@ export class OrangeMoneyAdapter implements PaymentAdapter {
     }
   }
 
+  /**
+   * ⚠️ CORRECTION FAILLE CRITIQUE : cette méthode renvoyait auparavant
+   * toujours `SUCCEEDED` en mode réel (hors mock), sans jamais interroger
+   * Orange - l'intégration réelle n'a jamais été terminée. N'importe qui
+   * pouvait donc faire confirmer une commande gratuitement en initiant un
+   * paiement puis en laissant le webhook (ou une requête forgée) déclencher
+   * la confirmation, sans jamais payer réellement.
+   *
+   * En attendant une vraie intégration testée avec l'API Orange (endpoint de
+   * statut de transaction), on renvoie PENDING en mode réel : la commande
+   * reste non confirmée plutôt que d'être confirmée à tort. C'est moins
+   * pratique (confirmation manuelle nécessaire pour l'instant) mais
+   * infiniment plus sûr qu'un contournement de paiement.
+   */
   async verifyPayment(providerTxnId: string): Promise<VerifyPaymentResult> {
     if (this.isMock) {
       return { success: true, status: 'SUCCEEDED', providerTxnId };
     }
-    // Real implementation would call Orange's transaction status endpoint
-    return { success: true, status: 'SUCCEEDED', providerTxnId };
+    logger.warn(
+      "Vérification Orange Money non implémentée en mode réel - paiement laissé en attente, ne jamais confirmer sans vraie vérification",
+      { providerTxnId }
+    );
+    return { success: false, status: 'PENDING', providerTxnId };
   }
 
   async handleWebhook(payload: any): Promise<VerifyPaymentResult> {
@@ -91,10 +108,15 @@ export class OrangeMoneyAdapter implements PaymentAdapter {
       return { success: true, refundId: `refund-mock-${providerTxnId}` };
     }
     try {
-      const response = await axios.post(`https://api.orange.com/orange-money-webpay/refund`, {
-        order_id: providerTxnId,
-        amount: amountXof,
-      });
+      // Correction bug : le jeton d'authentification manquait ici (présent
+      // sur initiatePayment mais oublié sur ce remboursement) - la requête
+      // aurait systématiquement échoué avec une erreur 401 en production.
+      const token = await this.getAccessToken();
+      const response = await axios.post(
+        `https://api.orange.com/orange-money-webpay/refund`,
+        { order_id: providerTxnId, amount: amountXof },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       return { success: true, raw: response.data };
     } catch (err: any) {
       logger.error('Orange Money refund error', { error: err.message });

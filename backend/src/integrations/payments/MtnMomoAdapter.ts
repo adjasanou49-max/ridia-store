@@ -80,8 +80,11 @@ export class MtnMomoAdapter implements PaymentAdapter {
         raw: response.data,
       };
     } catch (err: any) {
+      // Correction bug fiabilité : voir le commentaire équivalent dans
+      // WaveAdapter.verifyPayment - une erreur réseau n'est pas un échec de
+      // paiement confirmé, ne jamais la traiter comme définitive.
       logger.error('MTN MOMO verify error', { error: err.message });
-      return { success: false, status: 'FAILED', providerTxnId };
+      return { success: false, status: 'PENDING', providerTxnId };
     }
   }
 

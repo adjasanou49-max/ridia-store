@@ -74,8 +74,13 @@ export class WaveAdapter implements PaymentAdapter {
         raw: response.data,
       };
     } catch (err: any) {
+      // Correction bug fiabilité : une simple erreur réseau/timeout ne veut PAS
+      // dire que le paiement a échoué - le client a peut-être bien payé côté
+      // Wave. Marquer FAILED ici confirmerait à tort un échec définitif sur un
+      // incident transitoire. PENDING laisse la commande intacte, à revérifier
+      // plus tard (nouvelle notification webhook, ou nouvelle tentative).
       logger.error('Wave verify error', { error: err.message });
-      return { success: false, status: 'FAILED', providerTxnId };
+      return { success: false, status: 'PENDING', providerTxnId };
     }
   }
 
