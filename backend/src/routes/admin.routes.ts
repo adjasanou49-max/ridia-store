@@ -293,10 +293,29 @@ router.patch(
   })
 );
 
+/**
+ * Correction faille de privilège : rien n'empêchait un ADMIN classique de
+ * désactiver le compte d'un autre ADMIN, voire d'un SUPER_ADMIN - risque réel
+ * de verrouillage (lockout) du vrai propriétaire par un compte admin
+ * compromis ou malveillant. Seul un SUPER_ADMIN peut désactiver un autre
+ * compte ADMIN/SUPER_ADMIN ; les comptes CUSTOMER/SELLER restent gérables
+ * par n'importe quel ADMIN.
+ */
+export function canDeactivateTarget(actorRole: string | undefined, targetRole: string): boolean {
+  if (!['ADMIN', 'SUPER_ADMIN'].includes(targetRole)) return true;
+  return actorRole === 'SUPER_ADMIN';
+}
+
 // Désactiver un compte (ban) - ADMIN ou SUPER_ADMIN
 router.patch(
   '/users/:id/deactivate',
   asyncHandler(async (req, res) => {
+    const target = await prisma.user.findUnique({ where: { id: req.params.id }, select: { role: true } });
+    if (!target) throw new AppError('Utilisateur non trouvé', 404);
+    if (!canDeactivateTarget(req.auth?.role, target.role)) {
+      throw new AppError('Seul un SUPER_ADMIN peut désactiver un compte administrateur', 403);
+    }
+
     const user = await prisma.user.update({
       where: { id: req.params.id },
       data: { isActive: false },
