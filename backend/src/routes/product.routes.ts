@@ -243,6 +243,20 @@ router.get(
   })
 );
 
+/**
+ * Public : taux de change CNY->XOF réellement utilisé côté serveur. Sans
+ * cette route, le taux était accessible uniquement à l'admin - le formulaire
+ * vendeur devait deviner (valeur codée en dur), donnant une estimation de
+ * prix fausse dès que l'admin changeait le taux réel.
+ */
+router.get(
+  '/meta/exchange-rate',
+  asyncHandler(async (_req, res) => {
+    const cnyToXofRate = await productService.getCurrentExchangeRate();
+    res.json({ cnyToXofRate });
+  })
+);
+
 // Public: list categories
 router.get(
   '/meta/categories',

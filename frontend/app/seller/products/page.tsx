@@ -135,6 +135,15 @@ function CreateProductForm({ onCreated }: { onCreated: () => void }) {
     queryFn: async () => (await api.get<Category[]>('/products/meta/categories')).data,
   });
 
+  // Vrai taux de change utilisé côté serveur - configurable par l'admin
+  // (voir /admin/settings), donc jamais codé en dur ici pour ne pas afficher
+  // une estimation de prix fausse si l'admin le change.
+  const { data: exchangeRateData } = useQuery({
+    queryKey: ['exchange-rate'],
+    queryFn: async () => (await api.get<{ cnyToXofRate: number }>('/products/meta/exchange-rate')).data,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const [form, setForm] = useState({
     categoryId: '',
     name: '',
@@ -165,13 +174,13 @@ function CreateProductForm({ onCreated }: { onCreated: () => void }) {
 
   // Calcul en direct du prix de vente XOF - même formule que le backend
   // (ProductService.calculatePriceXof) : coûtCNY × taux × (1 + marge%), arrondi à 50 XOF.
-  const CNY_TO_XOF_RATE = 90; // doit rester synchronisé avec CNY_TO_XOF_RATE côté backend
+  const cnyToXofRate = exchangeRateData?.cnyToXofRate ?? 90; // repli raisonnable en attendant le chargement
   const costCny = parseFloat(form.costPriceCny) || 0;
   const marginEntered = form.marginPercent !== '';
   const margin = parseFloat(form.marginPercent) || 0;
   const estimatedPriceXof =
     costCny > 0 && marginEntered
-      ? Math.round((costCny * CNY_TO_XOF_RATE * (1 + margin / 100)) / 50) * 50
+      ? Math.round((costCny * cnyToXofRate * (1 + margin / 100)) / 50) * 50
       : 0;
 
   const selectedCategoryName = categories?.find((c) => c.id === form.categoryId)?.name;
@@ -482,12 +491,12 @@ function CreateProductForm({ onCreated }: { onCreated: () => void }) {
             </p>
             <div className="text-xs text-gray-600 space-y-1">
               <div className="flex justify-between">
-                <span>Coût ({costCny} ¥ × {CNY_TO_XOF_RATE})</span>
-                <span>{formatXof(costCny * CNY_TO_XOF_RATE)}</span>
+                <span>Coût ({costCny} ¥ × {cnyToXofRate})</span>
+                <span>{formatXof(costCny * cnyToXofRate)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Marge ({margin}%)</span>
-                <span>+{formatXof(estimatedPriceXof - costCny * CNY_TO_XOF_RATE)}</span>
+                <span>+{formatXof(estimatedPriceXof - costCny * cnyToXofRate)}</span>
               </div>
               <div className="flex justify-between font-semibold text-gray-700 border-t border-amber-200 pt-1">
                 <span>Prix de vente (1 pièce)</span>
