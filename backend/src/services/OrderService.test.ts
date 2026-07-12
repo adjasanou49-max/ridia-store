@@ -5,7 +5,7 @@ jest.mock('../config/prisma', () => {
     product: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     cartItem: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), upsert: jest.fn(), delete: jest.fn(), deleteMany: jest.fn() },
     order: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
-    orderItem: { updateMany: jest.fn() },
+    orderItem: { updateMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     payment: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
   };
   mockPrisma.$transaction = jest.fn((arg: any) =>
@@ -322,6 +322,49 @@ describe('OrderService', () => {
         where: { expiresAt: { lt: expect.any(Date) } },
         select: { id: true, productId: true, quantity: true },
       });
+    });
+  });
+
+  describe('shipOrderItem - correction bug (statut jamais vérifié avant expédition)', () => {
+    it('expédie normalement un article confirmé', async () => {
+      mockedPrisma.orderItem.findFirst.mockResolvedValue({ id: 'oi1', sellerId: 's1', status: 'CONFIRMED' });
+      mockedPrisma.orderItem.update.mockResolvedValue({
+        id: 'oi1',
+        status: 'SHIPPED',
+        order: { userId: 'u1', orderNumber: 'RID-1' },
+      });
+
+      await service.shipOrderItem('oi1', 's1', 'TRACK123');
+
+      expect(mockedPrisma.orderItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'SHIPPED' }) })
+      );
+    });
+
+    it("refuse d'expédier un article déjà livré", async () => {
+      mockedPrisma.orderItem.findFirst.mockResolvedValue({ id: 'oi1', sellerId: 's1', status: 'DELIVERED' });
+
+      await expect(service.shipOrderItem('oi1', 's1', 'TRACK123')).rejects.toThrow(
+        "Impossible d'expédier"
+      );
+      expect(mockedPrisma.orderItem.update).not.toHaveBeenCalled();
+    });
+
+    it("refuse d'expédier un article ANNULÉ (déjà remboursé au client)", async () => {
+      mockedPrisma.orderItem.findFirst.mockResolvedValue({ id: 'oi1', sellerId: 's1', status: 'CANCELLED' });
+
+      await expect(service.shipOrderItem('oi1', 's1', 'TRACK123')).rejects.toThrow(
+        "Impossible d'expédier"
+      );
+      expect(mockedPrisma.orderItem.update).not.toHaveBeenCalled();
+    });
+
+    it("rejette si l'article n'appartient pas à ce vendeur", async () => {
+      mockedPrisma.orderItem.findFirst.mockResolvedValue(null);
+
+      await expect(service.shipOrderItem('oi1', 's-autre', 'TRACK123')).rejects.toThrow(
+        'Article de commande non trouvé'
+      );
     });
   });
 });

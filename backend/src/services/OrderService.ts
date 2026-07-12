@@ -620,9 +620,22 @@ export class OrderService {
   }
 
   /** Le vendeur marque son article comme expédié + numéro de suivi */
+  /**
+   * Correction bug : aucune vérification du statut actuel n'existait avant
+   * de marquer un article comme expédié - un appel direct à l'API (hors
+   * interface, qui ne bloque qu'au niveau visuel) pouvait ré-expédier un
+   * article déjà livré, ou pire, un article ANNULÉ (donc déjà remboursé au
+   * client), envoyant une fausse notification d'expédition confuse.
+   */
   async shipOrderItem(orderItemId: string, sellerId: string, trackingNumber: string) {
     const item = await prisma.orderItem.findFirst({ where: { id: orderItemId, sellerId } });
     if (!item) throw new AppError('Article de commande non trouvé', 404);
+    if (!['CONFIRMED', 'PROCESSING'].includes(item.status)) {
+      throw new AppError(
+        `Impossible d'expédier un article au statut "${item.status}" - seuls les articles confirmés ou en préparation peuvent être expédiés`,
+        422
+      );
+    }
 
     const updated = await prisma.orderItem.update({
       where: { id: orderItemId },
