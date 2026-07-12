@@ -5,7 +5,7 @@ import { productImportService } from '../services/ProductImportService';
 import { orderService } from '../services/OrderService';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { authenticate, authorize } from '../middleware/auth';
-import { sellerApplicationSchema, bulkImportSchema, updateStoreProfileSchema } from '../utils/validators';
+import { sellerApplicationSchema, bulkImportSchema, updateStoreProfileSchema, requestPayoutSchema } from '../utils/validators';
 import { UserRole, ImportSource } from '@prisma/client';
 
 const router = Router();
@@ -60,7 +60,7 @@ router.post(
   authorize(UserRole.SELLER),
   asyncHandler(async (req, res) => {
     if (!req.auth?.sellerId) throw new AppError('Compte vendeur requis', 403);
-    const { amountXof, method, destinationRef } = req.body;
+    const { amountXof, method, destinationRef } = requestPayoutSchema.parse(req.body);
     const payout = await sellerService.requestPayout(req.auth.sellerId, amountXof, method, destinationRef);
     res.status(201).json(payout);
   })

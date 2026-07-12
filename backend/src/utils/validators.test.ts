@@ -7,6 +7,7 @@ import {
   addressSchema,
   resetPasswordSchema,
   updateStoreProfileSchema,
+  requestPayoutSchema,
 } from './validators';
 
 describe('registerSchema', () => {
@@ -167,5 +168,52 @@ describe('updateStoreProfileSchema - correction (route sans aucune validation av
   it('accepte un objet vide (mise à jour partielle)', () => {
     const result = updateStoreProfileSchema.safeParse({});
     expect(result.success).toBe(true);
+  });
+});
+
+describe('requestPayoutSchema - correction (NaN/négatif passait silencieusement avant)', () => {
+  it('accepte une demande valide', () => {
+    const result = requestPayoutSchema.safeParse({
+      amountXof: 50000,
+      method: 'WAVE',
+      destinationRef: '+22670000000',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejette un montant négatif', () => {
+    const result = requestPayoutSchema.safeParse({
+      amountXof: -1000,
+      method: 'WAVE',
+      destinationRef: '+22670000000',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejette NaN (avant : passait silencieusement le contrôle métier car 'NaN > x' est toujours faux)", () => {
+    const result = requestPayoutSchema.safeParse({
+      amountXof: NaN,
+      method: 'WAVE',
+      destinationRef: '+22670000000',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejette une méthode de paiement inconnue', () => {
+    const result = requestPayoutSchema.safeParse({
+      amountXof: 5000,
+      method: 'BITCOIN',
+      destinationRef: '+22670000000',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejette une référence de destination trop courte', () => {
+    const result = requestPayoutSchema.safeParse({
+      amountXof: 5000,
+      method: 'WAVE',
+      destinationRef: '1',
+    });
+    expect(result.success).toBe(false);
   });
 });

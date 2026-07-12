@@ -69,6 +69,16 @@ export const updateStoreProfileSchema = z.object({
   storeBannerUrl: z.string().url('URL de bannière invalide').optional(),
 });
 
+// Correction : cette route ne validait rien du tout - un amountXof NaN ou
+// négatif passait silencieusement le contrôle métier de requestPayout (une
+// comparaison "NaN > x" est toujours fausse en JS, donc NaN aurait été
+// accepté comme si le montant était nul).
+export const requestPayoutSchema = z.object({
+  amountXof: z.number().positive('Le montant doit être un nombre positif'),
+  method: z.enum(['ORANGE_MONEY', 'WAVE', 'MTN_MONEY', 'BANK_TRANSFER']),
+  destinationRef: z.string().min(4, 'Référence de destination invalide'),
+});
+
 export const bulkImportSchema = z.object({
   source: z.enum(['ALIBABA_1688', 'TAOBAO', 'PINDUODUO', 'MANUAL', 'CSV_UPLOAD']),
   rows: z
