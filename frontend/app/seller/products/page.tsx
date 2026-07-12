@@ -88,7 +88,10 @@ export default function SellerProductsPage() {
                       {p.status === 'ARCHIVED' ? (
                         <UnarchiveButton productId={p.id} />
                       ) : (
-                        <PriceIncreaseButton productId={p.id} currentPrice={p.basePriceXof} />
+                        <>
+                          <PriceIncreaseButton productId={p.id} currentPrice={p.basePriceXof} />
+                          <ArchiveButton productId={p.id} />
+                        </>
                       )}
                     </div>
                   </td>
@@ -495,6 +498,33 @@ function CreateProductForm({ onCreated }: { onCreated: () => void }) {
         )}
       </div>
     </div>
+  );
+}
+
+function ArchiveButton({ productId }: { productId: string }) {
+  const queryClient = useQueryClient();
+  const [submitting, setSubmitting] = useState(false);
+
+  async function archive() {
+    if (!confirm('Retirer ce produit de la vente ? Tu pourras le réactiver plus tard.')) return;
+    setSubmitting(true);
+    try {
+      await api.delete(`/products/${productId}`);
+      queryClient.invalidateQueries({ queryKey: ['seller', 'products'] });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={archive}
+      disabled={submitting}
+      className="text-xs text-red-500 font-medium hover:underline disabled:opacity-50"
+      title="Archiver (retirer de la vente)"
+    >
+      {submitting ? '...' : 'Archiver'}
+    </button>
   );
 }
 
