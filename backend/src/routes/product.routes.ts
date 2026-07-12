@@ -1,14 +1,46 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { productService } from '../services/ProductService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate, authorize } from '../middleware/auth';
 import { createProductSchema, updatePriceTiersSchema, updateProductSchema } from '../utils/validators';
 import { categorySuggestionAgent } from '../integrations/ai/CategorySuggestionAgent';
+import { imageSearchAgent } from '../integrations/ai/ImageSearchAgent';
+import { imageSearchRateLimiter } from '../middleware/rateLimit';
 import { prisma } from '../config/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { UserRole } from '@prisma/client';
 
 const router = Router();
+
+const imageSearchUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new AppError('Seules les images sont acceptées', 422));
+    }
+    cb(null, true);
+  },
+});
+
+// Public: recherche par photo - décrit l'image (IA) puis réutilise la recherche texte classique
+router.post(
+  '/search-by-image',
+  imageSearchRateLimiter,
+  imageSearchUpload.single('image'),
+  asyncHandler(async (req, res) => {
+    if (!req.file) throw new AppError('Aucune image reçue', 422);
+
+    const query = await imageSearchAgent.describeImageForSearch(req.file.buffer, req.file.mimetype);
+    const result = await productService.searchProducts({
+      query,
+      page: 1,
+      pageSize: 24,
+    });
+    res.json({ detectedQuery: query, ...result });
+  })
+);
 
 // Public: search/list products
 router.get(
