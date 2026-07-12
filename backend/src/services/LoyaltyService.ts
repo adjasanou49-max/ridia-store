@@ -32,7 +32,19 @@ export class LoyaltyService {
   }
 
   /** Attribue des points automatiquement quand une commande est livrée (1 point / 1000 XOF) */
+  /**
+   * Correction bug : aucune vérification n'empêchait d'attribuer les points
+   * plusieurs fois pour la même commande (ex: double webhook transporteur,
+   * double-clic admin sur "marquer comme livré"). On vérifie maintenant
+   * qu'aucune transaction de points n'existe déjà pour cette commande avant
+   * d'en créer une nouvelle.
+   */
   async awardPointsForOrder(userId: string, orderId: string, totalXof: number) {
+    const alreadyAwarded = await prisma.loyaltyTransaction.findFirst({
+      where: { referenceId: orderId, reason: 'Commande livrée' },
+    });
+    if (alreadyAwarded) return;
+
     const points = Math.floor(totalXof * POINTS_PER_XOF_SPENT);
     if (points <= 0) return;
 

@@ -167,6 +167,21 @@ describe('OrderService', () => {
       await expect(service.confirmPayment('txn-inconnu')).rejects.toThrow('Paiement introuvable');
     });
 
+    it("ne retraite pas un paiement déjà confirmé (idempotence sur webhook redélivré)", async () => {
+      mockedPrisma.payment.findUnique.mockResolvedValue({
+        id: 'pay1',
+        provider: 'ORANGE_MONEY',
+        status: 'SUCCEEDED', // déjà traité par un appel précédent
+        orderId: 'order1',
+        order: { userId: 'u1', orderNumber: 'RID-2026-ABC123', totalXof: 2500, user: {}, items: [] },
+      });
+
+      await service.confirmPayment('txn1');
+
+      expect(mockedGetAdapter).not.toHaveBeenCalled();
+      expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
     it('met à jour la commande et le paiement en cas de succès du prestataire', async () => {
       mockedPrisma.payment.findUnique.mockResolvedValue({
         id: 'pay1',

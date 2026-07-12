@@ -1,14 +1,19 @@
 jest.mock('../config/prisma', () => {
-  const mockPrisma = {
+  const mockPrisma: any = {
     loyaltyAccount: {
       upsert: jest.fn(),
       updateMany: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
     loyaltyTransaction: {
       create: jest.fn(),
+      findFirst: jest.fn(),
     },
   };
+  mockPrisma.$transaction = jest.fn((arg: any) =>
+    Array.isArray(arg) ? Promise.all(arg) : arg(mockPrisma)
+  );
   return { prisma: mockPrisma };
 });
 
@@ -16,8 +21,9 @@ import { prisma } from '../config/prisma';
 import { LoyaltyService } from './LoyaltyService';
 
 const mockedPrisma = prisma as unknown as {
-  loyaltyAccount: { upsert: jest.Mock; updateMany: jest.Mock; findUnique: jest.Mock };
-  loyaltyTransaction: { create: jest.Mock };
+  loyaltyAccount: { upsert: jest.Mock; updateMany: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
+  loyaltyTransaction: { create: jest.Mock; findFirst: jest.Mock };
+  $transaction: jest.Mock;
 };
 
 describe('LoyaltyService.redeemPoints - correction race condition', () => {
@@ -83,5 +89,39 @@ describe('LoyaltyService.redeemPoints - correction race condition', () => {
     expect(await service.redeemPoints('user-1', 0)).toBe(0);
     expect(await service.redeemPoints('user-1', -10)).toBe(0);
     expect(mockedPrisma.loyaltyAccount.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('LoyaltyService.awardPointsForOrder - correction bug idempotence', () => {
+  const service = new LoyaltyService();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedPrisma.loyaltyAccount.upsert.mockResolvedValue({
+      id: 'acc-1',
+      userId: 'user-1',
+      pointsBalance: 0,
+      lifetimePoints: 0,
+    });
+  });
+
+  it('attribue les points la première fois', async () => {
+    mockedPrisma.loyaltyTransaction.findFirst.mockResolvedValue(null);
+
+    await service.awardPointsForOrder('user-1', 'order-1', 10000);
+
+    expect(mockedPrisma.loyaltyTransaction.findFirst).toHaveBeenCalledWith({
+      where: { referenceId: 'order-1', reason: 'Commande livrée' },
+    });
+    expect(mockedPrisma.$transaction).toHaveBeenCalled();
+  });
+
+  it("n'attribue rien une deuxième fois pour la même commande (double webhook transporteur, double-clic admin)", async () => {
+    mockedPrisma.loyaltyTransaction.findFirst.mockResolvedValue({ id: 'existing-tx' });
+
+    await service.awardPointsForOrder('user-1', 'order-1', 10000);
+
+    expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
+    expect(mockedPrisma.loyaltyAccount.upsert).not.toHaveBeenCalled();
   });
 });

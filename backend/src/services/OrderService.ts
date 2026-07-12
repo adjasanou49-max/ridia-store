@@ -261,12 +261,24 @@ export class OrderService {
     return { order, paymentUrl: paymentResult.paymentUrl, providerTxnId: paymentResult.providerTxnId };
   }
 
+  /**
+   * Correction bug d'idempotence : les prestataires de paiement redélivrent
+   * parfois leur webhook plusieurs fois pour la même transaction (comportement
+   * documenté et attendu côté fournisseur, ex: en cas de timeout réseau). Sans
+   * ce contrôle, chaque redélivrance renvoyait une notification de
+   * confirmation en double au client et ajoutait une entrée dupliquée à
+   * l'historique de statut.
+   */
   async confirmPayment(providerTxnId: string) {
     const payment = await prisma.payment.findUnique({
       where: { providerTxnId },
       include: { order: { include: { user: true, items: true } } },
     });
     if (!payment) throw new AppError('Paiement introuvable', 404);
+
+    if (payment.status === 'SUCCEEDED') {
+      return { status: 'SUCCEEDED', success: true, providerTxnId }; // déjà traité - webhook redélivré
+    }
 
     const adapter = getPaymentAdapter(payment.provider);
     const result = await adapter.verifyPayment(providerTxnId);
