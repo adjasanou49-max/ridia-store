@@ -34,7 +34,6 @@ const SOURCE_OPTIONS = [
   { value: 'ALIBABA_1688', label: '1688.com' },
   { value: 'TAOBAO', label: 'Taobao' },
   { value: 'PINDUODUO', label: 'Pinduoduo' },
-  { value: 'CSV_UPLOAD', label: 'Fichier CSV' },
   { value: 'MANUAL', label: 'Saisie manuelle' },
 ];
 
