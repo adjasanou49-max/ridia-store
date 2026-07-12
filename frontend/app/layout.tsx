@@ -11,6 +11,7 @@ import { CurrencyProvider } from '@/lib/currency';
 import { CookieConsentBanner } from '@/components/CookieConsentBanner';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://ridia-store.com'),
   title: 'Ridia Store - Mode Africaine & Import Chine',
   description:
     'Marketplace e-commerce : boubous, tissus wax, mode africaine et produits importés. Des milliers de produits, livrés où que vous soyez.',

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import ProductDetailClient from './ProductDetailClient';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://ridiastore.com';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://ridia-store.com';
 
 interface ProductForMetadata {
   name: string;
