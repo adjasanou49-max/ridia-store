@@ -69,6 +69,41 @@ class DeepLTranslationAdapter implements TranslationAdapter {
   }
 }
 
+/**
+ * Microsoft Translator (Azure Cognitive Services) - alternative à DeepL, avec
+ * un palier gratuit bien plus généreux (2M caractères/mois contre 500K chez
+ * DeepL) et moins cher au-delà (10$/million contre 25$/million chez DeepL) -
+ * intéressant pour les gros volumes d'import produits.
+ */
+class MicrosoftTranslatorAdapter implements TranslationAdapter {
+  async translate(text: string, targetLang: string, sourceLang?: string): Promise<string> {
+    if (!text.trim()) return text;
+
+    try {
+      const { data } = await axios.post(
+        'https://api.cognitive.microsofttranslator.com/translate',
+        [{ Text: text }],
+        {
+          params: {
+            'api-version': '3.0',
+            to: targetLang.toLowerCase(),
+            ...(sourceLang && sourceLang !== 'auto' ? { from: sourceLang.toLowerCase() } : {}),
+          },
+          headers: {
+            'Ocp-Apim-Subscription-Key': env.TRANSLATION.microsoftApiKey,
+            'Ocp-Apim-Subscription-Region': env.TRANSLATION.microsoftRegion,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      return data?.[0]?.translations?.[0]?.text ?? text;
+    } catch (err: any) {
+      logger.error('Translation failed, falling back to original text', { error: err.message });
+      return text;
+    }
+  }
+}
+
 class MockTranslationAdapter implements TranslationAdapter {
   async translate(text: string, targetLang: string): Promise<string> {
     if (!text.trim()) return text;
@@ -88,5 +123,11 @@ class MockTranslationAdapter implements TranslationAdapter {
   }
 }
 
+function getLiveAdapter(): TranslationAdapter {
+  return env.TRANSLATION.provider === 'microsoft'
+    ? new MicrosoftTranslatorAdapter()
+    : new DeepLTranslationAdapter();
+}
+
 export const translationAdapter: TranslationAdapter =
-  env.TRANSLATION.mode === 'live' ? new DeepLTranslationAdapter() : new MockTranslationAdapter();
+  env.TRANSLATION.mode === 'live' ? getLiveAdapter() : new MockTranslationAdapter();
