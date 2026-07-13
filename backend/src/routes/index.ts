@@ -13,6 +13,7 @@ import notificationRoutes from './notification.routes';
 import scrapeImportRoutes from './scrapeImport.routes';
 import orderFulfillmentRoutes from './orderFulfillment.routes';
 import walletRoutes from './wallet.routes';
+import supportRoutes from './support.routes';
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use('/notifications', notificationRoutes);
 router.use('/scrape-import', scrapeImportRoutes);
 router.use('/order-fulfillment', orderFulfillmentRoutes);
 router.use('/wallet', walletRoutes);
+router.use('/support', supportRoutes);
 
 export default router;
