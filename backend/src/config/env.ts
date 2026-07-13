@@ -85,10 +85,12 @@ export const env = {
   CNY_TO_XOF_RATE: parseFloat(process.env.CNY_TO_XOF_RATE || '90'),
 
   TRANSLATION: {
-    provider: required('TRANSLATION_PROVIDER', 'deepl'), // "deepl" ou "microsoft"
+    provider: required('TRANSLATION_PROVIDER', 'deepl'), // "deepl", "microsoft" ou "libretranslate"
     deeplApiKey: required('DEEPL_API_KEY'),
     microsoftApiKey: required('MICROSOFT_TRANSLATOR_API_KEY'),
     microsoftRegion: required('MICROSOFT_TRANSLATOR_REGION'),
+    libreTranslateUrl: required('LIBRETRANSLATE_URL'), // ex: https://libretranslate-production.up.railway.app
+    libreTranslateApiKey: required('LIBRETRANSLATE_API_KEY'), // optionnel si LT_API_KEYS désactivé
     mode: required('TRANSLATION_MODE', 'mock'),
     defaultTargetLang: required('TRANSLATION_DEFAULT_TARGET_LANG', 'fr'),
   },

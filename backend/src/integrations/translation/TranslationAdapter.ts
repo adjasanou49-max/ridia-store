@@ -104,6 +104,35 @@ class MicrosoftTranslatorAdapter implements TranslationAdapter {
   }
 }
 
+/**
+ * LibreTranslate - moteur open source auto-hébergé (voir déploiement Railway).
+ * Seule option réellement gratuite et illimitée quel que soit le volume de
+ * produits importés (aucun coût par caractère, juste le serveur Railway qui
+ * l'héberge) - adaptée aux très gros volumes (dizaines/centaines de milliers
+ * de produits) où tout service facturé au caractère deviendrait très cher.
+ * Contrepartie : qualité de traduction inférieure à DeepL/Microsoft,
+ * particulièrement sur les paires de langues moins courantes.
+ */
+class LibreTranslateAdapter implements TranslationAdapter {
+  async translate(text: string, targetLang: string, sourceLang?: string): Promise<string> {
+    if (!text.trim()) return text;
+
+    try {
+      const { data } = await axios.post(`${env.TRANSLATION.libreTranslateUrl}/translate`, {
+        q: text,
+        source: sourceLang && sourceLang !== 'auto' ? sourceLang.toLowerCase() : 'auto',
+        target: targetLang.toLowerCase(),
+        format: 'text',
+        ...(env.TRANSLATION.libreTranslateApiKey ? { api_key: env.TRANSLATION.libreTranslateApiKey } : {}),
+      });
+      return data?.translatedText ?? text;
+    } catch (err: any) {
+      logger.error('Translation failed, falling back to original text', { error: err.message });
+      return text;
+    }
+  }
+}
+
 class MockTranslationAdapter implements TranslationAdapter {
   async translate(text: string, targetLang: string): Promise<string> {
     if (!text.trim()) return text;
@@ -124,9 +153,9 @@ class MockTranslationAdapter implements TranslationAdapter {
 }
 
 function getLiveAdapter(): TranslationAdapter {
-  return env.TRANSLATION.provider === 'microsoft'
-    ? new MicrosoftTranslatorAdapter()
-    : new DeepLTranslationAdapter();
+  if (env.TRANSLATION.provider === 'microsoft') return new MicrosoftTranslatorAdapter();
+  if (env.TRANSLATION.provider === 'libretranslate') return new LibreTranslateAdapter();
+  return new DeepLTranslationAdapter();
 }
 
 export const translationAdapter: TranslationAdapter =
