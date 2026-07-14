@@ -18,6 +18,13 @@ const PAYMENT_OPTIONS: { value: PaymentProvider; label: string; logo: string }[]
   { value: 'MTN_MONEY', label: 'MTN Mobile Money', logo: '💛' },
 ];
 
+const TIER_LABELS: Record<string, string> = {
+  bronze: 'Bronze',
+  argent: 'Argent',
+  or: 'Or',
+  platine: 'Platine',
+};
+
 export default function CheckoutPage() {
   const { items, refresh } = useCart();
   const { currency, formatPrice } = useCurrency();
@@ -46,7 +53,9 @@ export default function CheckoutPage() {
 
   const { data: loyalty } = useQuery({
     queryKey: ['loyalty'],
-    queryFn: async () => (await api.get<{ pointsBalance: number }>('/auth/loyalty')).data,
+    queryFn: async () =>
+      (await api.get<{ pointsBalance: number; tier: string; currentDiscountPercent: number }>('/auth/loyalty'))
+        .data,
   });
 
   const { data: wallet } = useQuery({
@@ -92,13 +101,16 @@ export default function CheckoutPage() {
     }
   }
 
-  // Dérivés au rendu - pas de useState/useEffect nécessaires. Les points ne
-  // peuvent jamais dépasser ce qu'il reste à payer après la remise du coupon.
-  const remainingAfterCoupon = Math.max(0, subtotal - discountXof);
-  const pointsToRedeem = usePoints ? Math.min(loyalty?.pointsBalance ?? 0, remainingAfterCoupon) : 0;
-  const remainingAfterPoints = Math.max(0, remainingAfterCoupon - pointsToRedeem);
+  // Dérivés au rendu - pas de useState/useEffect nécessaires. La réduction de palier
+  // est automatique (aucune action du client) et se cumule avec le coupon puis les points,
+  // dans le même ordre que le calcul serveur (OrderService.createOrderFromCart).
+  const tierDiscountPercent = loyalty?.currentDiscountPercent ?? 0;
+  const tierDiscountXof = tierDiscountPercent > 0 ? Math.round((subtotal * tierDiscountPercent) / 100) : 0;
+  const remainingAfterTierAndCoupon = Math.max(0, subtotal - tierDiscountXof - discountXof);
+  const pointsToRedeem = usePoints ? Math.min(loyalty?.pointsBalance ?? 0, remainingAfterTierAndCoupon) : 0;
+  const remainingAfterPoints = Math.max(0, remainingAfterTierAndCoupon - pointsToRedeem);
   const walletAmountToUse = useWallet ? Math.min(wallet?.balanceXof ?? 0, remainingAfterPoints) : 0;
-  const totalDiscount = discountXof + pointsToRedeem + walletAmountToUse;
+  const totalDiscount = tierDiscountXof + discountXof + pointsToRedeem + walletAmountToUse;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -325,10 +337,16 @@ export default function CheckoutPage() {
               <span>{formatXof(subtotal)}</span>
             </div>
           )}
-          {totalDiscount > 0 && (
+          {tierDiscountXof > 0 && (
             <div className="flex justify-between text-sm text-green-600 mb-1">
-              <span>Remise</span>
-              <span>-{formatXof(totalDiscount)}</span>
+              <span>Remise fidélité ({TIER_LABELS[loyalty?.tier ?? 'bronze']} -{tierDiscountPercent}%)</span>
+              <span>-{formatXof(tierDiscountXof)}</span>
+            </div>
+          )}
+          {totalDiscount - tierDiscountXof > 0 && (
+            <div className="flex justify-between text-sm text-green-600 mb-1">
+              <span>Autres remises</span>
+              <span>-{formatXof(totalDiscount - tierDiscountXof)}</span>
             </div>
           )}
           <div className="flex justify-between text-lg font-bold">
