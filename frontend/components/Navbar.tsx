@@ -197,7 +197,10 @@ export function Navbar() {
             <span className="text-gray-500 font-normal">Langue de l&apos;app</span>
             <select
               value={language}
-              onChange={(e) => setLanguage(e.target.value)}
+              onChange={(e) => {
+                setLanguage(e.target.value);
+                setMenuOpen(false);
+              }}
               title="Langue de l'application"
               className="text-sm text-gray-700 bg-transparent border border-gray-200 rounded-lg px-2 py-1 focus:outline-none"
             >
@@ -212,7 +215,10 @@ export function Navbar() {
             <span className="text-gray-500 font-normal">Devise d&apos;affichage</span>
             <select
               value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
+              onChange={(e) => {
+                setCurrency(e.target.value);
+                setMenuOpen(false);
+              }}
               title="Devise d'affichage - le paiement reste toujours en FCFA"
               className="text-sm text-gray-700 bg-transparent border border-gray-200 rounded-lg px-2 py-1 focus:outline-none"
             >
@@ -223,19 +229,9 @@ export function Navbar() {
               ))}
             </select>
           </div>
-          <Link href="/products" onClick={() => setMenuOpen(false)}>
-            Produits
-          </Link>
-          {user && (
-            <Link href="/orders" onClick={() => setMenuOpen(false)}>
-              Mes commandes
-            </Link>
-          )}
-          {user && (
-            <Link href="/account/wallet" onClick={() => setMenuOpen(false)}>
-              Mon Wallet
-            </Link>
-          )}
+          {/* Produits/Commandes/Wallet/Paramètres/Déconnexion sont déjà accessibles via la
+              barre du bas (Catégories, Commandes, Compte) - pas besoin de les dupliquer ici.
+              Ce menu ☰ sert uniquement à identifier rapidement langue + devise. */}
           {isSeller && (
             <Link href="/seller/dashboard" onClick={() => setMenuOpen(false)}>
               Espace Vendeur
@@ -246,16 +242,7 @@ export function Navbar() {
               Administration
             </Link>
           )}
-          {user && (
-            <Link href="/account/settings" onClick={() => setMenuOpen(false)}>
-              Paramètres
-            </Link>
-          )}
-          {user ? (
-            <button onClick={logout} className="text-left text-red-600">
-              Déconnexion
-            </button>
-          ) : (
+          {!user && (
             <Link href="/login" onClick={() => setMenuOpen(false)}>
               Connexion
             </Link>
