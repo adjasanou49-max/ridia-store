@@ -49,7 +49,7 @@ export class ImageSearchAgent {
               },
               {
                 type: 'text',
-                text: `Décris en 3 à 6 mots-clés simples (en français) le produit principal visible sur cette photo, pour rechercher un article similaire dans une boutique en ligne de mode et produits importés de Chine. Réponds UNIQUEMENT avec les mots-clés séparés par des espaces, rien d'autre (pas de phrase, pas de ponctuation).`,
+                text: `Décris en 3 à 6 mots-clés simples (en français) le produit principal visible sur cette photo, pour rechercher un article similaire dans une marketplace en ligne mondiale de mode et produits du quotidien. Réponds UNIQUEMENT avec les mots-clés séparés par des espaces, rien d'autre (pas de phrase, pas de ponctuation).`,
               },
             ],
           },
