@@ -6,7 +6,7 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-4 py-8 grid md:grid-cols-3 gap-6 text-sm text-gray-500">
         <div>
           <p className="font-bold text-brand-600 mb-2">Ridia Store</p>
-          <p>Mode africaine et import direct de Chine.</p>
+          <p>Mode africaine et essentiels du quotidien, livrés partout où vous êtes.</p>
         </div>
         <div>
           <p className="font-medium text-gray-700 mb-2">Informations légales</p>
