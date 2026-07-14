@@ -6,6 +6,7 @@ import { ShoppingCart, User, Menu, X, LayoutDashboard, Store, Settings, ChevronD
 import { useAuth } from '@/lib/auth';
 import { useCart } from '@/lib/cart';
 import { useCurrency } from '@/lib/currency';
+import { useLanguage, LANGUAGE_LABELS, AVAILABLE_LANGUAGES } from '@/lib/language';
 import { NotificationBell } from './NotificationBell';
 import { SearchBar } from './SearchBar';
 
@@ -13,6 +14,7 @@ export function Navbar() {
   const { user, logout, isAdmin, isSeller } = useAuth();
   const { itemCount } = useCart();
   const { currency, setCurrency, availableCurrencies } = useCurrency();
+  const { language, setLanguage } = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
@@ -71,6 +73,19 @@ export function Navbar() {
         </nav>
 
         <div className="flex items-center gap-4">
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            title="Langue de l'application"
+            className="hidden sm:block text-xs text-gray-500 bg-transparent border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none"
+          >
+            {AVAILABLE_LANGUAGES.map((code) => (
+              <option key={code} value={code}>
+                {LANGUAGE_LABELS[code]}
+              </option>
+            ))}
+          </select>
+
           <select
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
@@ -178,6 +193,21 @@ export function Navbar() {
       {/* Menu mobile */}
       {menuOpen && (
         <div className="md:hidden border-t border-gray-200 px-4 py-3 flex flex-col gap-3 text-sm font-medium">
+          <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+            <span className="text-gray-500 font-normal">Langue de l&apos;app</span>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              title="Langue de l'application"
+              className="text-sm text-gray-700 bg-transparent border border-gray-200 rounded-lg px-2 py-1 focus:outline-none"
+            >
+              {AVAILABLE_LANGUAGES.map((code) => (
+                <option key={code} value={code}>
+                  {LANGUAGE_LABELS[code]}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="flex items-center justify-between pb-2 border-b border-gray-100">
             <span className="text-gray-500 font-normal">Devise d&apos;affichage</span>
             <select
