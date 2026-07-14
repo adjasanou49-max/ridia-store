@@ -8,7 +8,7 @@ interface CategoryOption {
 }
 
 // Mots-clés de secours (mode mock / hors-ligne, sans clé API) - couvre les catégories
-// les plus courantes d'un catalogue mode africaine + import Chine.
+// les plus courantes d'un catalogue mode et produits du quotidien.
 const KEYWORD_MAP: { pattern: RegExp; categoryName: RegExp }[] = [
   { pattern: /boubou|wax|tissu|pagne/i, categoryName: /wax|boubou|tissu/i },
   { pattern: /robe|jupe|femme/i, categoryName: /femme/i },
@@ -53,7 +53,7 @@ export class CategorySuggestionAgent {
         messages: [
           {
             role: 'user',
-            content: `Voici un produit à catégoriser pour une boutique en ligne de mode africaine et produits importés de Chine.
+            content: `Voici un produit à catégoriser pour une marketplace en ligne mondiale de mode et produits du quotidien.
 
 Nom: ${productName}
 Description: ${description.slice(0, 300)}
