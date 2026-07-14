@@ -12,9 +12,9 @@ import { CurrencyProvider } from '@/lib/currency';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://ridia-store.com'),
-  title: 'Ridia Store - Mode Africaine & Marketplace',
+  title: 'Ridia Store - Marketplace en ligne',
   description:
-    'Marketplace e-commerce : boubous, tissus wax, mode africaine et essentiels du quotidien, livrés partout où vous êtes.',
+    'Marketplace e-commerce : mode, tissus wax, boubous, électronique et essentiels du quotidien, livrés partout dans le monde.',
   manifest: '/manifest.json',
 };
 
