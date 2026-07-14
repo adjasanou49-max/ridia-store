@@ -121,7 +121,6 @@ export function SearchBar({ mobile = false }: { mobile?: boolean }) {
             ref={imageInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             onChange={handleImageChange}
             className="hidden"
             id={`image-search-input-${mobile ? 'mobile' : 'desktop'}`}
