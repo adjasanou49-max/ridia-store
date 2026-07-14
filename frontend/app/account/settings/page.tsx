@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { User, Lock, ShieldCheck, Database, Gift } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -21,11 +22,23 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id'];
 
-export default function AccountSettingsPage() {
-  const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabId>('profile');
+function isValidTab(value: string | null): value is TabId {
+  return TABS.some((t) => t.id === value);
+}
 
-  const { data: privacy, isLoading: privacyLoading } = useQuery({
+function AccountSettingsContent() {
+  const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<TabId>(isValidTab(initialTab) ? initialTab : 'profile');
+
+  const {
+    data: privacy,
+    isLoading: privacyLoading,
+    isError: privacyError,
+    error: privacyErrorDetail,
+    refetch: refetchPrivacy,
+  } = useQuery({
     queryKey: ['privacy-settings'],
     queryFn: async () =>
       (await api.get<{ notifyByEmail: boolean; notifyByWhatsapp: boolean; marketingOptIn: boolean }>(
@@ -61,14 +74,33 @@ export default function AccountSettingsPage() {
 
       {activeTab === 'profile' && <ProfileTab user={user} />}
       {activeTab === 'security' && <SecurityTab />}
-      {activeTab === 'privacy' &&
-        (privacyLoading || !privacy ? (
-          <p className="text-gray-400">Chargement...</p>
-        ) : (
-          <PrivacyTab initial={privacy} />
-        ))}
+      {activeTab === 'privacy' && (
+        <>
+          {privacyLoading && <p className="text-gray-400">Chargement...</p>}
+          {privacyError && (
+            <div className="bg-white p-5 rounded-xl border border-red-100 text-sm">
+              <p className="text-red-600 mb-2">
+                Impossible de charger tes préférences de confidentialité
+                {privacyErrorDetail instanceof Error ? ` (${privacyErrorDetail.message})` : ''}.
+              </p>
+              <button onClick={() => refetchPrivacy()} className="text-brand-600 font-medium hover:underline">
+                Réessayer
+              </button>
+            </div>
+          )}
+          {!privacyLoading && !privacyError && privacy && <PrivacyTab initial={privacy} />}
+        </>
+      )}
       {activeTab === 'data' && <DataTab />}
       {activeTab === 'loyalty' && <LoyaltyTab />}
     </div>
+  );
+}
+
+export default function AccountSettingsPage() {
+  return (
+    <Suspense fallback={<p className="text-gray-400">Chargement...</p>}>
+      <AccountSettingsContent />
+    </Suspense>
   );
 }
