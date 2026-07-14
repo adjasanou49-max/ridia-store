@@ -22,13 +22,17 @@ interface TokenPair {
 
 export class AuthService {
   async register(input: RegisterInput) {
+    // Une chaîne vide n'est pas "pas de téléphone" pour la contrainte @unique de la
+    // base — deux inscriptions avec phone="" entreraient en conflit. On normalise ici.
+    const phone = input.phone?.trim() || undefined;
+
     const existing = await prisma.user.findUnique({ where: { email: input.email } });
     if (existing) {
       throw new AppError('Un compte existe déjà avec cet email', 409);
     }
 
-    if (input.phone) {
-      const existingPhone = await prisma.user.findUnique({ where: { phone: input.phone } });
+    if (phone) {
+      const existingPhone = await prisma.user.findUnique({ where: { phone } });
       if (existingPhone) {
         throw new AppError('Un compte existe déjà avec ce numéro de téléphone', 409);
       }
@@ -39,7 +43,7 @@ export class AuthService {
     const user = await prisma.user.create({
       data: {
         email: input.email,
-        phone: input.phone,
+        phone,
         passwordHash,
         firstName: input.firstName,
         lastName: input.lastName,
