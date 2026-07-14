@@ -32,12 +32,23 @@ router.get(
     // l'esprit - ici on garde tout sauf CANCELLED pour la comparaison visuelle).
     const since = new Date();
     since.setDate(since.getDate() - 30);
+    const previousPeriodStart = new Date(since);
+    previousPeriodStart.setDate(previousPeriodStart.getDate() - 30);
 
-    const recentOrders = await prisma.order.findMany({
-      where: { createdAt: { gte: since }, status: { not: 'CANCELLED' } },
-      select: { createdAt: true, totalXof: true },
-      orderBy: { createdAt: 'asc' },
-    });
+    const [recentOrders, previousPeriodOrders] = await Promise.all([
+      prisma.order.findMany({
+        where: { createdAt: { gte: since }, status: { not: 'CANCELLED' } },
+        select: { createdAt: true, totalXof: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      // Période équivalente juste avant, pour calculer une évolution en %
+      // (comme "+12% vs période précédente" sur un vrai dashboard pro).
+      prisma.order.aggregate({
+        where: { createdAt: { gte: previousPeriodStart, lt: since }, status: { not: 'CANCELLED' } },
+        _sum: { totalXof: true },
+        _count: true,
+      }),
+    ]);
 
     // Regroupement par jour (YYYY-MM-DD) - un jour sans commande apparaît à 0,
     // pour que le graphique ne saute pas de dates et reste lisible.
@@ -57,6 +68,17 @@ router.get(
     }
     const dailyTrend = Array.from(dailyMap.entries()).map(([date, v]) => ({ date, ...v }));
 
+    const currentPeriodRevenue = recentOrders.reduce((sum, o) => sum + Number(o.totalXof), 0);
+    const previousPeriodRevenue = Number(previousPeriodOrders._sum.totalXof || 0);
+    const revenueTrendPercent =
+      previousPeriodRevenue > 0
+        ? Math.round(((currentPeriodRevenue - previousPeriodRevenue) / previousPeriodRevenue) * 100)
+        : null;
+    const orderTrendPercent =
+      previousPeriodOrders._count > 0
+        ? Math.round(((recentOrders.length - previousPeriodOrders._count) / previousPeriodOrders._count) * 100)
+        : null;
+
     // Top 5 produits par chiffre d'affaires cumulé (toutes commandes confondues)
     const topProductsRaw = await prisma.orderItem.groupBy({
       by: ['productId', 'productName'],
@@ -71,6 +93,27 @@ router.get(
       unitsSold: p._sum.quantity || 0,
     }));
 
+    // Dernières commandes (avec client) - vue "activité récente" d'un vrai back-office
+    const latestOrders = await prisma.order.findMany({
+      take: 8,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        totalXof: true,
+        createdAt: true,
+        user: { select: { firstName: true, lastName: true } },
+      },
+    });
+
+    // Compteurs pour la barre d'alertes prioritaires (ce qui attend une action admin)
+    const [pendingSellers, pendingProducts, openDisputes] = await Promise.all([
+      prisma.seller.count({ where: { status: 'PENDING' } }),
+      prisma.product.count({ where: { status: 'PENDING_REVIEW' } }),
+      prisma.dispute.count({ where: { status: { in: ['OPEN', 'UNDER_REVIEW'] } } }),
+    ]);
+
     res.json({
       userCount,
       sellerCount,
@@ -79,6 +122,17 @@ router.get(
       totalOrders: orderStats._count,
       dailyTrend,
       topProducts,
+      revenueTrendPercent,
+      orderTrendPercent,
+      latestOrders: latestOrders.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        status: o.status,
+        totalXof: Number(o.totalXof),
+        createdAt: o.createdAt,
+        customerName: `${o.user.firstName} ${o.user.lastName}`,
+      })),
+      alerts: { pendingSellers, pendingProducts, openDisputes },
     });
   })
 );
