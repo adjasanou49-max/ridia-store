@@ -138,7 +138,7 @@ function ProductSupportPanel() {
         ))}
       </div>
       <p className="mt-4 px-1 text-center text-[12px] text-gray-400">
-        Pas trouvé ta réponse ? Passe sur l'onglet « Service Client ».
+        Pas trouvé ta réponse ? Passe sur l&apos;onglet « Service Client ».
       </p>
     </div>
   );
