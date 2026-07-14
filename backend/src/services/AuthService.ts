@@ -27,6 +27,13 @@ export class AuthService {
       throw new AppError('Un compte existe déjà avec cet email', 409);
     }
 
+    if (input.phone) {
+      const existingPhone = await prisma.user.findUnique({ where: { phone: input.phone } });
+      if (existingPhone) {
+        throw new AppError('Un compte existe déjà avec ce numéro de téléphone', 409);
+      }
+    }
+
     const passwordHash = await bcrypt.hash(input.password, 12);
 
     const user = await prisma.user.create({
