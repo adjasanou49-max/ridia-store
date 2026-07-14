@@ -178,6 +178,21 @@ export function Navbar() {
       {/* Menu mobile */}
       {menuOpen && (
         <div className="md:hidden border-t border-gray-200 px-4 py-3 flex flex-col gap-3 text-sm font-medium">
+          <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+            <span className="text-gray-500 font-normal">Devise d&apos;affichage</span>
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              title="Devise d'affichage - le paiement reste toujours en FCFA"
+              className="text-sm text-gray-700 bg-transparent border border-gray-200 rounded-lg px-2 py-1 focus:outline-none"
+            >
+              {availableCurrencies.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          </div>
           <Link href="/products" onClick={() => setMenuOpen(false)}>
             Produits
           </Link>
