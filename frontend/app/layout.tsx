@@ -8,7 +8,6 @@ import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { CartProvider } from '@/lib/cart';
 import { WishlistProvider } from '@/lib/wishlist';
 import { CurrencyProvider } from '@/lib/currency';
-import { CookieConsentBanner } from '@/components/CookieConsentBanner';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://ridia-store.com'),
@@ -35,7 +34,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <main className="min-h-screen pb-16 md:pb-0">{children}</main>
                   <Footer />
                   <MobileBottomNav />
-                  <CookieConsentBanner />
                 </CurrencyProvider>
               </WishlistProvider>
             </CartProvider>
