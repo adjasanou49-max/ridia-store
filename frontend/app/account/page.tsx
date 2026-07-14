@@ -21,34 +21,40 @@ import type { Order, PaginatedResult } from '@/types';
  * seul le "tier" renvoyé par le serveur fait foi.
  */
 
+interface TierRung {
+  tier: string;
+  minPoints: number;
+  discountPercent?: number;
+}
+
 interface LoyaltyAccount {
   pointsBalance: number;
   lifetimePoints: number;
   tier: string;
+  currentDiscountPercent: number;
+  xofPerPoint: number;
+  tierLadder: TierRung[];
 }
 
 interface WalletData {
   balanceXof: number;
 }
 
-const TIER_THRESHOLDS: { tier: string; label: string; minPoints: number }[] = [
-  { tier: 'bronze', label: 'Bronze', minPoints: 0 },
-  { tier: 'argent', label: 'Argent', minPoints: 500 },
-  { tier: 'or', label: 'Or', minPoints: 2000 },
-  { tier: 'platine', label: 'Platine', minPoints: 5000 },
-];
+const TIER_LABELS: Record<string, string> = { bronze: 'Bronze', argent: 'Argent', or: 'Or', platine: 'Platine' };
 
-function getTierProgress(lifetimePoints: number) {
-  const idx = TIER_THRESHOLDS.findIndex((t, i) => {
-    const next = TIER_THRESHOLDS[i + 1];
-    return lifetimePoints >= t.minPoints && (!next || lifetimePoints < next.minPoints);
-  });
-  const current = TIER_THRESHOLDS[Math.max(idx, 0)];
-  const next = TIER_THRESHOLDS[idx + 1];
-  if (!next) return { current, next: null, progressPercent: 100, pointsToNext: 0 };
+function getTierProgress(loyalty: LoyaltyAccount) {
+  const ladderAsc = [...loyalty.tierLadder].sort((a, b) => a.minPoints - b.minPoints);
+  const idx = ladderAsc.findIndex((t) => t.tier === loyalty.tier);
+  const current = ladderAsc[Math.max(idx, 0)];
+  const next = ladderAsc[idx + 1];
+  if (!next) return { current, next: null, progressPercent: 100, pointsToNext: 0, xofToNext: 0 };
   const span = next.minPoints - current.minPoints;
-  const progressPercent = Math.min(100, Math.round(((lifetimePoints - current.minPoints) / span) * 100));
-  return { current, next, progressPercent, pointsToNext: next.minPoints - lifetimePoints };
+  const progressPercent = Math.min(
+    100,
+    Math.round(((loyalty.lifetimePoints - current.minPoints) / span) * 100)
+  );
+  const pointsToNext = next.minPoints - loyalty.lifetimePoints;
+  return { current, next, progressPercent, pointsToNext, xofToNext: pointsToNext * loyalty.xofPerPoint };
 }
 
 export default function AccountHomePage() {
@@ -79,7 +85,7 @@ export default function AccountHomePage() {
     else if (o.status === 'DISPUTED') counts.disputed++;
   });
 
-  const progress = loyalty ? getTierProgress(loyalty.lifetimePoints) : null;
+  const progress = loyalty ? getTierProgress(loyalty) : null;
 
   const orderShortcuts = [
     { key: 'unpaid', label: 'Impayé', icon: FileClock, count: counts.unpaid },
@@ -116,8 +122,15 @@ export default function AccountHomePage() {
       {/* Carte palier de fidélité */}
       <section className="mb-4 rounded-2xl bg-white p-4 border border-gray-100">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-sm font-bold text-brand-600">{progress?.current.label ?? 'Niveau'}</span>
-          <Link href="/account/settings" className="text-xs text-gray-400">
+          <span className="text-sm font-bold text-brand-600">
+            {TIER_LABELS[progress?.current.tier ?? 'bronze']}
+            {loyalty && loyalty.currentDiscountPercent > 0 && (
+              <span className="ml-2 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-600">
+                -{loyalty.currentDiscountPercent}% sur tes commandes
+              </span>
+            )}
+          </span>
+          <Link href="/account/settings?tab=loyalty" className="text-xs text-gray-400">
             Avantages &gt;
           </Link>
         </div>
@@ -126,7 +139,8 @@ export default function AccountHomePage() {
         </div>
         {progress?.next && (
           <p className="mt-2 text-xs text-gray-500">
-            Il te reste {progress.pointsToNext.toLocaleString('fr-FR')} points pour atteindre {progress.next.label}
+            Il te reste <strong>{formatXof(progress.xofToNext)}</strong> d&apos;achats pour passer{' '}
+            {TIER_LABELS[progress.next.tier]} et débloquer {progress.next.discountPercent}% de réduction permanente
           </p>
         )}
       </section>
