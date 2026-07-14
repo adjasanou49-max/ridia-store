@@ -1,7 +1,7 @@
 {
   "name": "Ridia Store",
   "short_name": "Ridia",
-  "description": "Mode africaine et essentiels du quotidien, livrés partout où vous êtes",
+  "description": "Mode et essentiels du quotidien, livrés partout dans le monde",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
