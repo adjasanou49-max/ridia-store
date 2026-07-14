@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const { withSentryConfig } = require('@sentry/nextjs');
+
 const nextConfig = {
   reactStrictMode: true,
   images: {
@@ -9,6 +11,7 @@ const nextConfig = {
       { protocol: 'https', hostname: 'res.cloudinary.com' },
       { protocol: 'https', hostname: '**.alicdn.com' },
       { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: 'loremflickr.com' },
       { protocol: 'https', hostname: 'mock-cdn.ridia-store.com' },
     ],
   },
@@ -22,4 +25,12 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+// withSentryConfig ajoute l'upload des source maps à chaque build (pour avoir
+// des stack traces lisibles) - silencieux si SENTRY_AUTH_TOKEN n'est pas
+// configuré (aucune erreur de build dans ce cas, juste pas d'upload).
+module.exports = withSentryConfig(nextConfig, {
+  org: 'ridia',
+  project: 'ridia-store-frontend',
+  silent: true,
+  widenClientFileUpload: true,
+});
