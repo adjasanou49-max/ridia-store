@@ -5,11 +5,12 @@ import { prisma } from '../config/prisma';
 // réglage manque en base - jamais utilisées si un SystemSetting existe.
 const DEFAULT_POINTS_PER_XOF_SPENT = 1 / 1000; // 1 point tous les 1000 FCFA dépensés
 const DEFAULT_REFERRAL_BONUS_POINTS = 500;
-const DEFAULT_TIER_THRESHOLDS: { tier: string; minPoints: number }[] = [
-  { tier: 'platine', minPoints: 5000 },
-  { tier: 'or', minPoints: 2000 },
-  { tier: 'argent', minPoints: 500 },
-  { tier: 'bronze', minPoints: 0 },
+// Réduction permanente appliquée automatiquement à chaque commande selon le palier atteint.
+const DEFAULT_TIER_THRESHOLDS: { tier: string; minPoints: number; discountPercent: number }[] = [
+  { tier: 'platine', minPoints: 5000, discountPercent: 15 },
+  { tier: 'or', minPoints: 2000, discountPercent: 10 },
+  { tier: 'argent', minPoints: 500, discountPercent: 5 },
+  { tier: 'bronze', minPoints: 0, discountPercent: 0 },
 ];
 
 export class LoyaltyService {
@@ -23,12 +24,34 @@ export class LoyaltyService {
       pointsPerXof: (asMap.loyaltyPointsPerXof as number) ?? DEFAULT_POINTS_PER_XOF_SPENT,
       referralBonusPoints: (asMap.loyaltyReferralBonusPoints as number) ?? DEFAULT_REFERRAL_BONUS_POINTS,
       tierThresholds:
-        (asMap.loyaltyTierThresholds as { tier: string; minPoints: number }[]) ?? DEFAULT_TIER_THRESHOLDS,
+        (asMap.loyaltyTierThresholds as { tier: string; minPoints: number; discountPercent?: number }[]) ??
+        DEFAULT_TIER_THRESHOLDS,
     };
   }
 
-  private computeTier(lifetimePoints: number, thresholds: { tier: string; minPoints: number }[]): string {
+  private computeTier(
+    lifetimePoints: number,
+    thresholds: { tier: string; minPoints: number; discountPercent?: number }[]
+  ): string {
     return thresholds.find((t) => lifetimePoints >= t.minPoints)?.tier ?? 'bronze';
+  }
+
+  /** Pourcentage de réduction permanente du palier atteint (0 si palier inconnu ou non configuré). */
+  private discountPercentForTier(
+    tier: string,
+    thresholds: { tier: string; minPoints: number; discountPercent?: number }[]
+  ): number {
+    return thresholds.find((t) => t.tier === tier)?.discountPercent ?? 0;
+  }
+
+  /**
+   * Réduction permanente (%) applicable à la prochaine commande de cet utilisateur,
+   * selon son palier de fidélité actuel. Appelée par OrderService au moment du checkout.
+   */
+  async getDiscountPercentForUser(userId: string): Promise<number> {
+    const account = await this.getOrCreateAccount(userId);
+    const { tierThresholds } = await this.getSettings();
+    return this.discountPercentForTier(account.tier, tierThresholds);
   }
 
   async getOrCreateAccount(userId: string) {
@@ -46,7 +69,16 @@ export class LoyaltyService {
       orderBy: { createdAt: 'desc' },
       take: 30,
     });
-    return { ...account, transactions };
+    const { tierThresholds, pointsPerXof } = await this.getSettings();
+    const tierLadder = [...tierThresholds].sort((a, b) => b.minPoints - a.minPoints);
+    const currentDiscountPercent = this.discountPercentForTier(account.tier, tierThresholds);
+    return {
+      ...account,
+      transactions,
+      tierLadder,
+      currentDiscountPercent,
+      xofPerPoint: pointsPerXof > 0 ? Math.round(1 / pointsPerXof) : 1000,
+    };
   }
 
   /** Attribue des points automatiquement quand une commande est livrée (1 point / 1000 XOF) */
