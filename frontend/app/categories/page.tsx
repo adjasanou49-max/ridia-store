@@ -39,7 +39,14 @@ export default function CategoriesPage() {
         const { data } = await api.get<CategoryNode[]>('/products/meta/categories');
         if (cancelled) return;
         setCategories(data);
-        setActiveId(data[0]?.id ?? null);
+        const first = data[0];
+        if (first && first.children.length === 0) {
+          // Même règle qu'au clic : pas de sous-catégories -> direction produits,
+          // même si c'est la catégorie sélectionnée par défaut au chargement.
+          router.replace(`/products?categoryId=${first.id}`);
+          return;
+        }
+        setActiveId(first?.id ?? null);
       } catch (err) {
         console.error('Erreur chargement catégories', err);
       } finally {
@@ -49,7 +56,7 @@ export default function CategoriesPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   const active = categories.find((c) => c.id === activeId);
 
