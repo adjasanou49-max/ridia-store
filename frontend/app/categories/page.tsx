@@ -53,6 +53,16 @@ export default function CategoriesPage() {
 
   const active = categories.find((c) => c.id === activeId);
 
+  const selectCategory = (cat: CategoryNode) => {
+    if (cat.children.length === 0) {
+      // Pas de sous-catégories : on affiche directement tous les produits,
+      // pas d'étape intermédiaire à cliquer.
+      router.push(`/products?categoryId=${cat.id}`);
+      return;
+    }
+    setActiveId(cat.id);
+  };
+
   return (
     <div className="flex h-[calc(100vh-52px)] flex-col bg-white md:h-screen">
       <header className="flex items-center gap-3 border-b border-gray-100 px-4 py-3">
@@ -74,7 +84,7 @@ export default function CategoriesPage() {
             return (
               <button
                 key={cat.id}
-                onClick={() => setActiveId(cat.id)}
+                onClick={() => selectCategory(cat)}
                 className={`block w-full border-b border-gray-100 px-3 py-4 text-left text-sm leading-tight transition-colors ${
                   isActive ? 'border-l-4 border-l-brand-500 bg-white font-semibold text-brand-600' : 'text-gray-600'
                 }`}
@@ -94,31 +104,27 @@ export default function CategoriesPage() {
               ))}
             </div>
           ) : active ? (
-            <div className="grid grid-cols-3 gap-x-3 gap-y-5">
-              {/* La catégorie elle-même, pour voir tous ses produits sans filtrer par enfant */}
+            <>
               <button
                 onClick={() => router.push(`/products?categoryId=${active.id}`)}
-                className="flex flex-col items-center gap-2 text-center"
+                className="mb-4 flex w-full items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5 text-sm"
               >
-                <SubCategoryThumb name={active.name} iconUrl={active.iconUrl} />
-                <span className="line-clamp-2 text-xs font-medium text-gray-900">Tout {active.name}</span>
+                <span className="font-medium text-gray-900">Tous les produits « {active.name} »</span>
+                <span className="text-brand-600">Voir tout →</span>
               </button>
-              {active.children.map((sub) => (
-                <button
-                  key={sub.id}
-                  onClick={() => router.push(`/products?categoryId=${sub.id}`)}
-                  className="flex flex-col items-center gap-2 text-center"
-                >
-                  <SubCategoryThumb name={sub.name} iconUrl={sub.iconUrl} />
-                  <span className="line-clamp-2 text-xs text-gray-700">{sub.name}</span>
-                </button>
-              ))}
-              {active.children.length === 0 && (
-                <p className="col-span-3 mt-6 text-center text-sm text-gray-400">
-                  Aucune sous-catégorie pour l&apos;instant
-                </p>
-              )}
-            </div>
+              <div className="grid grid-cols-3 gap-x-3 gap-y-5">
+                {active.children.map((sub) => (
+                  <button
+                    key={sub.id}
+                    onClick={() => router.push(`/products?categoryId=${sub.id}`)}
+                    className="flex flex-col items-center gap-2 text-center"
+                  >
+                    <SubCategoryThumb name={sub.name} iconUrl={sub.iconUrl} />
+                    <span className="line-clamp-2 text-xs text-gray-700">{sub.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
           ) : (
             <p className="mt-10 text-center text-sm text-gray-400">Aucune catégorie</p>
           )}
