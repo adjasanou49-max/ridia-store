@@ -141,12 +141,16 @@ export class OrderService {
 
     const shippingFeeXof = this.calculateShippingFee(cartItems.length);
 
+    // Réduction permanente de palier de fidélité (5% Argent / 10% Or / 15% Platine) -
+    // appliquée automatiquement, sans code ni action du client, avant le code promo.
+    const tierDiscountPercent = await loyaltyService.getDiscountPercentForUser(userId);
+    let discountXof = tierDiscountPercent > 0 ? Math.round((subtotalXof * tierDiscountPercent) / 100) : 0;
+
     // Code promo optionnel - validé avant tout calcul final
-    let discountXof = 0;
     let appliedCoupon: { id: string } | null = null;
     if (couponCode) {
       const result = await couponService.validate(couponCode, userId, subtotalXof);
-      discountXof = result.discountXof;
+      discountXof += result.discountXof;
       appliedCoupon = result.coupon;
     }
 
