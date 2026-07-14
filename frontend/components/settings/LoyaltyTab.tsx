@@ -4,12 +4,21 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Copy, Check } from 'lucide-react';
 import { api } from '@/lib/api';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatXof } from '@/lib/utils';
+
+interface TierRung {
+  tier: string;
+  minPoints: number;
+  discountPercent?: number;
+}
 
 interface LoyaltyAccount {
   pointsBalance: number;
   lifetimePoints: number;
   tier: string;
+  currentDiscountPercent: number;
+  xofPerPoint: number;
+  tierLadder: TierRung[];
   transactions: { id: string; points: number; reason: string; createdAt: string }[];
 }
 
@@ -55,8 +64,16 @@ export function LoyaltyTab() {
 
   const tierInfo = TIER_LABELS[loyalty.tier] || TIER_LABELS.bronze;
 
+  // Grille triée du plus bas au plus haut palier, pour un affichage en escalier lisible.
+  const ladderAsc = [...loyalty.tierLadder].sort((a, b) => a.minPoints - b.minPoints);
+  const currentIndex = ladderAsc.findIndex((t) => t.tier === loyalty.tier);
+  const nextTier = ladderAsc[currentIndex + 1];
+  const pointsToNext = nextTier ? Math.max(0, nextTier.minPoints - loyalty.lifetimePoints) : 0;
+  const xofToNext = pointsToNext * loyalty.xofPerPoint;
+
   return (
     <div className="space-y-4">
+      {/* Palier actuel */}
       <div className="bg-white p-5 rounded-xl border border-gray-100">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -67,9 +84,26 @@ export function LoyaltyTab() {
             Niveau {tierInfo.label}
           </span>
         </div>
+
+        {loyalty.currentDiscountPercent > 0 && (
+          <div className="mb-3 rounded-lg bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700">
+            🎁 -{loyalty.currentDiscountPercent}% appliqués automatiquement sur toutes tes commandes
+          </div>
+        )}
+
         <p className="text-xs text-gray-400">
-          1 point tous les 1000 FCFA dépensés, crédité à chaque livraison. {loyalty.lifetimePoints} points gagnés au total.
+          1 point tous les {formatXof(loyalty.xofPerPoint)} dépensés, crédité à chaque livraison. Tu as gagné{' '}
+          {loyalty.lifetimePoints} points au total ({formatXof(loyalty.lifetimePoints * loyalty.xofPerPoint)}{' '}
+          d&apos;achats cumulés).
         </p>
+
+        {nextTier && (
+          <p className="mt-3 text-xs text-gray-500">
+            Il te reste <strong>{formatXof(xofToNext)}</strong> d&apos;achats ({pointsToNext} points) pour passer{' '}
+            <strong>{TIER_LABELS[nextTier.tier]?.label ?? nextTier.tier}</strong> et débloquer{' '}
+            {nextTier.discountPercent}% de réduction permanente.
+          </p>
+        )}
 
         {loyalty.transactions.length > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
@@ -85,6 +119,38 @@ export function LoyaltyTab() {
         )}
       </div>
 
+      {/* Grille des avantages par palier, du plus accessible au plus élevé */}
+      <div className="bg-white p-5 rounded-xl border border-gray-100">
+        <h2 className="font-semibold mb-3">Tes avantages par palier</h2>
+        <div className="space-y-2">
+          {ladderAsc.map((rung) => {
+            const info = TIER_LABELS[rung.tier] || TIER_LABELS.bronze;
+            const isCurrent = rung.tier === loyalty.tier;
+            return (
+              <div
+                key={rung.tier}
+                className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${
+                  isCurrent ? 'border-brand-300 bg-brand-50' : 'border-gray-100'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${info.color}`}>{info.label}</span>
+                  <span className="text-xs text-gray-500">
+                    dès {formatXof(rung.minPoints * loyalty.xofPerPoint)} d&apos;achats
+                  </span>
+                </div>
+                <span
+                  className={`text-sm font-bold ${(rung.discountPercent ?? 0) > 0 ? 'text-brand-600' : 'text-gray-400'}`}
+                >
+                  {(rung.discountPercent ?? 0) > 0 ? `-${rung.discountPercent}%` : '—'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Parrainage */}
       <div className="bg-white p-5 rounded-xl border border-gray-100">
         <h2 className="font-semibold mb-1">Parraine tes proches</h2>
         <p className="text-sm text-gray-500 mb-3">
