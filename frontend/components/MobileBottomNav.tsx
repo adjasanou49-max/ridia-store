@@ -7,11 +7,11 @@ import { useCart } from '@/lib/cart';
 
 const TABS = [
   { href: '/', label: 'Accueil', icon: Home },
-  { href: '/products', label: 'Catégories', icon: LayoutGrid },
+  { href: '/categories', label: 'Catégories', icon: LayoutGrid },
   { href: '/support', label: 'Support', icon: MessageCircle },
   { href: '/cart', label: 'Panier', icon: ShoppingCart },
   { href: '/orders', label: 'Commandes', icon: Package },
-  { href: '/account/settings', label: 'Compte', icon: User },
+  { href: '/account', label: 'Compte', icon: User },
 ] as const;
 
 export function MobileBottomNav() {
