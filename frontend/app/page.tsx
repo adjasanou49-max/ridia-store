@@ -37,27 +37,8 @@ export default function HomePage() {
 
   return (
     <div>
-      {/* Hero */}
-      <section className="bg-gradient-to-br from-brand-600 to-brand-500 text-white">
-        <div className="max-w-7xl mx-auto px-4 py-12 md:py-20 text-center">
-          <h1 className="text-2xl md:text-5xl font-bold mb-3">
-            Mode Africaine &amp; Import direct de Chine
-          </h1>
-          <p className="text-base md:text-xl text-brand-50 mb-6 max-w-2xl mx-auto">
-            Boubous, tissus wax, électronique et bien plus. Des milliers de produits,
-            livrés où que vous soyez.
-          </p>
-          <Link
-            href="/products"
-            className="inline-block bg-white text-brand-700 font-semibold px-8 py-3 rounded-full hover:bg-brand-50 transition"
-          >
-            Découvrir les produits
-          </Link>
-        </div>
-      </section>
-
       {/* Catégories */}
-      <section className="max-w-7xl mx-auto px-4 py-6">
+      <section className="max-w-7xl mx-auto px-4 pt-4 pb-6">
         {categories && <CategoryIconRow categories={categories} />}
       </section>
 
