@@ -100,13 +100,15 @@ function ProductsGrid({ categoryId, initialQuery }: { categoryId?: string; initi
         <h1 className="text-2xl font-bold">Tous les produits</h1>
 
         <div className="flex gap-3 w-full md:w-auto">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher un produit..."
-            className="flex-1 md:w-64 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
-          <ImageSearchButton onResult={(detectedQuery) => setQuery(detectedQuery)} />
+          <div className="relative flex-1 md:w-64">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Rechercher un produit..."
+              className="w-full bg-gray-50 border border-gray-200 rounded-full pl-4 pr-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
+            />
+            <ImageSearchButton onResult={(detectedQuery) => setQuery(detectedQuery)} />
+          </div>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
@@ -226,7 +228,7 @@ function ImageSearchButton({ onResult }: { onResult: (query: string) => void }) 
   }
 
   return (
-    <div className="relative">
+    <>
       <input
         ref={inputRef}
         type="file"
@@ -239,17 +241,17 @@ function ImageSearchButton({ onResult }: { onResult: (query: string) => void }) 
       <label
         htmlFor="image-search-input"
         title="Rechercher avec une photo"
-        className={`flex items-center justify-center border border-gray-300 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50 ${
+        className={`absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-7 h-7 rounded-full cursor-pointer hover:bg-gray-200/70 ${
           loading ? 'opacity-50 pointer-events-none' : ''
         }`}
       >
-        <Camera size={18} className="text-gray-600" />
+        <Camera size={16} className="text-gray-500" />
       </label>
       {error && (
         <p className="absolute top-full right-0 mt-1 w-48 text-xs text-red-600 bg-white border border-red-100 rounded-lg p-2 shadow-sm z-10">
           {error}
         </p>
       )}
-    </div>
+    </>
   );
 }
