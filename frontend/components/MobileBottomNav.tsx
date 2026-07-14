@@ -4,19 +4,21 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, LayoutGrid, MessageCircle, ShoppingCart, Package, User } from 'lucide-react';
 import { useCart } from '@/lib/cart';
+import { useLanguage, TranslationKey } from '@/lib/language';
 
-const TABS = [
-  { href: '/', label: 'Accueil', icon: Home },
-  { href: '/categories', label: 'Catégories', icon: LayoutGrid },
-  { href: '/support', label: 'Support', icon: MessageCircle },
-  { href: '/cart', label: 'Panier', icon: ShoppingCart },
-  { href: '/orders', label: 'Commandes', icon: Package },
-  { href: '/account', label: 'Compte', icon: User },
-] as const;
+const TABS: { href: string; key: TranslationKey; icon: typeof Home }[] = [
+  { href: '/', key: 'nav.home', icon: Home },
+  { href: '/categories', key: 'nav.categories', icon: LayoutGrid },
+  { href: '/support', key: 'nav.support', icon: MessageCircle },
+  { href: '/cart', key: 'nav.cart', icon: ShoppingCart },
+  { href: '/orders', key: 'nav.orders', icon: Package },
+  { href: '/account', key: 'nav.account', icon: User },
+];
 
 export function MobileBottomNav() {
   const pathname = usePathname();
   const { itemCount } = useCart();
+  const { t } = useLanguage();
 
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 flex items-center justify-around py-1.5">
@@ -38,7 +40,7 @@ export function MobileBottomNav() {
               )}
             </div>
             <span className={`text-[9.5px] leading-tight ${isActive ? 'text-brand-600 font-medium' : 'text-gray-400'}`}>
-              {tab.label}
+              {t(tab.key)}
             </span>
           </Link>
         );
