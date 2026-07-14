@@ -10,7 +10,7 @@ export function CookieConsentBanner() {
   const [visible, setVisible] = useState(() => !Cookies.get(CONSENT_COOKIE));
 
   function accept() {
-    Cookies.set(CONSENT_COOKIE, 'acknowledged', { expires: 365 });
+    Cookies.set(CONSENT_COOKIE, 'acknowledged', { expires: 365, path: '/' });
     setVisible(false);
   }
 
