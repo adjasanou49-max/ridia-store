@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import { cookies } from 'next/headers';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth';
 import { QueryProvider } from '@/lib/query-provider';
@@ -10,7 +9,7 @@ import { InstallPrompt } from '@/components/InstallPrompt';
 import { CartProvider } from '@/lib/cart';
 import { WishlistProvider } from '@/lib/wishlist';
 import { CurrencyProvider } from '@/lib/currency';
-import { LanguageProvider, AVAILABLE_LANGUAGES } from '@/lib/language';
+import { LanguageProvider } from '@/lib/language';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://ridia-store.com'),
@@ -24,20 +23,21 @@ export const viewport: Viewport = {
   themeColor: '#f97316',
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const cookieStore = await cookies();
-  const cookieLang = cookieStore.get('ridia_language')?.value;
-  const initialLanguage = AVAILABLE_LANGUAGES.includes(cookieLang ?? '') ? (cookieLang as string) : 'fr';
-
+// Pas de cookies()/headers() ici : ça forcerait TOUTE l'app en rendu dynamique
+// (plus aucune page statique/cachée), donc une dépendance au backend à chaque
+// requête. La langue reste gérée uniquement côté client (LanguageProvider),
+// avec 'fr' comme lang par défaut sur <html> - acceptable, l'essentiel pour le
+// SEO est que le contenu texte visible soit cohérent, pas l'attribut lang seul.
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang={initialLanguage}>
+    <html lang="fr">
       <body>
         <QueryProvider>
           <AuthProvider>
             <CartProvider>
               <WishlistProvider>
                 <CurrencyProvider>
-                  <LanguageProvider initialLanguage={initialLanguage}>
+                  <LanguageProvider>
                     <Navbar />
                     <main className="min-h-screen pb-16 md:pb-0">{children}</main>
                     <Footer />
