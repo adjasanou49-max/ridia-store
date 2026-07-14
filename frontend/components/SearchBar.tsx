@@ -6,9 +6,11 @@ import Image from 'next/image';
 import { Search, X, Camera } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatXof } from '@/lib/utils';
+import { useLanguage } from '@/lib/language';
 import type { PaginatedResult, Product } from '@/types';
 
 export function SearchBar({ mobile = false }: { mobile?: boolean }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Product[]>([]);
@@ -101,7 +103,7 @@ export function SearchBar({ mobile = false }: { mobile?: boolean }) {
             value={query}
             onChange={(e) => handleChange(e.target.value)}
             onFocus={() => results.length > 0 && setOpen(true)}
-            placeholder={mobile ? 'Rechercher un produit...' : 'Rechercher un produit, une marque...'}
+            placeholder={t('search.placeholder')}
             className="w-full bg-gray-50 border border-gray-200 rounded-full pl-4 pr-24 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
           />
           {query && (
