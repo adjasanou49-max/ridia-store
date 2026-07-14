@@ -36,16 +36,58 @@ export function errorHandler(
     return res.status(err.statusCode).json({ error: err.message });
   }
 
-  // Filet de sécurité : toute violation de contrainte unique Prisma non explicitement
-  // vérifiée avant coup (ex: un nouveau champ @unique ajouté au schema sans check
-  // dédié) renvoie un message clair au lieu d'un crash générique 500.
-  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-    const fields = (err.meta?.target as string[] | undefined)?.join(', ') || 'ce champ';
-    logger.warn('Contrainte unique Prisma violée', { fields, path: req.path });
-    return res.status(409).json({ error: `Une valeur en conflit existe déjà pour : ${fields}` });
+  // Filet de sécurité Prisma : capture TOUTE erreur connue de la base de données
+  // (pas seulement les conflits d'unicité) et renvoie un message exploitable au lieu
+  // d'un 500 générique qui masque la vraie cause. Toujours loggé en détail côté serveur
+  // pour debug, mais le message renvoyé au client reste sûr (pas de détails internes).
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    logger.error('Erreur Prisma connue', {
+      code: err.code,
+      meta: err.meta,
+      message: err.message,
+      path: req.path,
+      method: req.method,
+    });
+
+    if (err.code === 'P2002') {
+      const fields = (err.meta?.target as string[] | undefined)?.join(', ') || 'ce champ';
+      return res.status(409).json({ error: `Une valeur en conflit existe déjà pour : ${fields}` });
+    }
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'Ressource introuvable.' });
+    }
+    if (err.code === 'P2003') {
+      return res.status(400).json({ error: 'Référence invalide (élément lié introuvable).' });
+    }
+    // Codes P1xxx = problème de connexion à la base de données elle-même.
+    if (err.code.startsWith('P1')) {
+      return res
+        .status(503)
+        .json({ error: 'Base de données temporairement indisponible, réessaie dans un instant.' });
+    }
+    return res.status(400).json({ error: 'Requête invalide.' });
+  }
+
+  if (err instanceof Prisma.PrismaClientValidationError) {
+    logger.error('Erreur de validation Prisma (champ manquant/mal typé)', {
+      message: err.message,
+      path: req.path,
+    });
+    return res.status(400).json({ error: 'Données invalides envoyées au serveur.' });
+  }
+
+  if (err instanceof Prisma.PrismaClientInitializationError) {
+    logger.error('Impossible de se connecter à la base de données', {
+      message: err.message,
+      path: req.path,
+    });
+    return res
+      .status(503)
+      .json({ error: 'Connexion à la base de données impossible, réessaie dans un instant.' });
   }
 
   logger.error('Unhandled error', {
+    name: err.name,
     message: err.message,
     stack: err.stack,
     path: req.path,
