@@ -46,8 +46,20 @@ router.post(
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { q, categoryId, sellerId, minPrice, maxPrice, inStock, sortBy, page, pageSize, attributes, isFeatured } =
-      req.query;
+    const {
+      q,
+      categoryId,
+      sellerId,
+      minPrice,
+      maxPrice,
+      inStock,
+      sortBy,
+      page,
+      pageSize,
+      attributes,
+      isFeatured,
+      lang,
+    } = req.query;
     const result = await productService.searchProducts({
       query: q as string,
       categoryId: categoryId as string,
@@ -61,6 +73,7 @@ router.get(
       pageSize: pageSize ? Number(pageSize) : 24,
       // attributes passé en JSON encodé dans l'URL, ex: {"Couleur":"Rouge"}
       attributes: attributes ? JSON.parse(attributes as string) : undefined,
+      lang: lang as string | undefined,
     });
     res.json(result);
   })
@@ -70,7 +83,7 @@ router.get(
 router.get(
   '/:slug',
   asyncHandler(async (req, res) => {
-    const product = await productService.getProductBySlug(req.params.slug);
+    const product = await productService.getProductBySlug(req.params.slug, req.query.lang as string | undefined);
     res.json(product);
   })
 );
