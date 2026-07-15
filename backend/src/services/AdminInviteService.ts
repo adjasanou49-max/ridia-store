@@ -3,7 +3,12 @@ import { Prisma, UserRole, SellerStatus } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AppError } from '../middleware/errorHandler';
 
-const INVITABLE_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.PURCHASING_AGENT, UserRole.SELLER];
+const INVITABLE_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.PURCHASING_AGENT,
+  UserRole.SELLER,
+  UserRole.MARKETING_AGENT,
+];
 
 /** Slug unique dérivé du nom - garde ridia-store cohérent avec le reste (categories, etc.) */
 function slugify(input: string): string {
@@ -27,7 +32,13 @@ export class AdminInviteService {
       throw new AppError("Rôle invalide pour un code d'invitation", 422);
     }
     const prefix =
-      intendedRole === UserRole.PURCHASING_AGENT ? 'AGENT' : intendedRole === UserRole.SELLER ? 'SELLER' : 'ADMIN';
+      intendedRole === UserRole.PURCHASING_AGENT
+        ? 'AGENT'
+        : intendedRole === UserRole.SELLER
+          ? 'SELLER'
+          : intendedRole === UserRole.MARKETING_AGENT
+            ? 'MARKETING'
+            : 'ADMIN';
     const code = `${prefix}-${nanoid(10).toUpperCase()}`;
     return prisma.adminInviteCode.create({
       data: {
