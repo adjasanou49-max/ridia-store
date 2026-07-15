@@ -25,7 +25,20 @@ app.use(
   })
 );
 app.use(compression());
-app.use(express.json({ limit: '15mb' }));
+// `verify` conserve le corps brut de la requête dans req.rawBody, en plus du
+// JSON parsé habituel. Nécessaire pour la vérification de signature Wave :
+// la signature porte sur les octets exacts envoyés par Wave, et reparser
+// puis re-sérialiser le JSON (même avec les mêmes données) change l'ordre
+// des espaces/clés et invalide la signature - piège explicitement documenté
+// par Wave lui-même.
+app.use(
+  express.json({
+    limit: '15mb',
+    verify: (req, _res, buf) => {
+      (req as express.Request & { rawBody?: string }).rawBody = buf.toString('utf8');
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 app.use(globalRateLimiter);
 
