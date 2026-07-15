@@ -18,6 +18,7 @@ import {
   Palette,
   PackageCheck,
   Star,
+  Handshake,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -44,6 +45,7 @@ const OWNER_NAV: NavItem[] = [
   { href: '/admin/categories', label: 'Catégories & marges', icon: Tags },
   { href: '/admin/attributes', label: 'Attributs de catégorie', icon: Palette },
   { href: '/admin/coupons', label: 'Codes promo', icon: Ticket },
+  { href: '/admin/sales-agents', label: 'Agents commerciaux', icon: Handshake },
   { href: '/admin/invite-codes', label: "Codes d'accès admin", icon: KeyRound },
   { href: '/admin/ai-moderation', label: 'Agent IA', icon: Sparkles },
   { href: '/admin/settings', label: 'Paramètres système', icon: Settings },
