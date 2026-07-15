@@ -16,13 +16,17 @@ export default function ActiverAdminPage() {
     setError(null);
     setLoading(true);
     try {
-      const { data } = await api.post<{ role: 'ADMIN' | 'SELLER' | 'PURCHASING_AGENT' }>(
+      const { data } = await api.post<{ role: 'ADMIN' | 'SELLER' | 'PURCHASING_AGENT' | 'MARKETING_AGENT' }>(
         '/auth/redeem-admin-code',
         { code: code.trim() }
       );
       setSuccess(true);
       const destination =
-        data.role === 'SELLER' ? '/seller/dashboard' : data.role === 'PURCHASING_AGENT' ? '/agent' : '/admin/dashboard';
+        data.role === 'SELLER'
+          ? '/seller/dashboard'
+          : data.role === 'PURCHASING_AGENT'
+            ? '/agent'
+            : '/admin/dashboard';
       setTimeout(() => {
         window.location.href = destination; // rechargement complet pour rafraîchir le rôle
       }, 1500);
