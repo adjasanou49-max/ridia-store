@@ -76,7 +76,11 @@ async function main() {
     { name: 'Instruments de Musique', slug: 'instruments-musique' },
   ];
 
-  for (const [index, cat] of categories.entries()) {
+  // Tri alphabétique (locale française : Éclairage se classe avec E, pas à part)
+  // avant d'assigner sortOrder, pour un affichage de sidebar rangé A→Z.
+  const sortedCategories = [...categories].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+
+  for (const [index, cat] of sortedCategories.entries()) {
     const data = { ...cat, sortOrder: index };
     await prisma.category.upsert({
       where: { slug: cat.slug },
