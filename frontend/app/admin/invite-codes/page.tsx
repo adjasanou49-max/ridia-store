@@ -10,7 +10,7 @@ import { formatDate } from '@/lib/utils';
 interface InviteCode {
   id: string;
   code: string;
-  intendedRole: 'ADMIN' | 'PURCHASING_AGENT' | 'SELLER';
+  intendedRole: 'ADMIN' | 'PURCHASING_AGENT' | 'SELLER' | 'MARKETING_AGENT';
   usedBy: string | null;
   usedAt: string | null;
   expiresAt: string;
@@ -35,7 +35,7 @@ export default function AdminInviteCodesPage() {
 function InviteCodesContent() {
   const queryClient = useQueryClient();
   const [expiresInHours, setExpiresInHours] = useState('72');
-  const [intendedRole, setIntendedRole] = useState<'ADMIN' | 'PURCHASING_AGENT' | 'SELLER'>('ADMIN');
+  const [intendedRole, setIntendedRole] = useState<'ADMIN' | 'PURCHASING_AGENT' | 'SELLER' | 'MARKETING_AGENT'>('ADMIN');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const { data: codes, isLoading } = useQuery({
@@ -74,12 +74,13 @@ function InviteCodesContent() {
         <label className="text-sm text-gray-600">Rôle</label>
         <select
           value={intendedRole}
-          onChange={(e) => setIntendedRole(e.target.value as 'ADMIN' | 'PURCHASING_AGENT' | 'SELLER')}
+          onChange={(e) => setIntendedRole(e.target.value as 'ADMIN' | 'PURCHASING_AGENT' | 'SELLER' | 'MARKETING_AGENT')}
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
         >
           <option value="ADMIN">Admin (accès large : produits, clients, avis...)</option>
           <option value="PURCHASING_AGENT">Agent d&apos;achat (uniquement les commandes fournisseur)</option>
           <option value="SELLER">Vendeur (sa propre boutique, ses produits, ses commandes)</option>
+          <option value="MARKETING_AGENT">Agent Marketing (tableau de bord, codes promo, mise en avant produits)</option>
         </select>
         <label className="text-sm text-gray-600">Expire dans</label>
         <select
@@ -125,7 +126,9 @@ function InviteCodesContent() {
                         ? "Agent d'achat"
                         : c.intendedRole === 'SELLER'
                           ? 'Vendeur'
-                          : 'Admin'}
+                          : c.intendedRole === 'MARKETING_AGENT'
+                            ? 'Agent Marketing'
+                            : 'Admin'}
                     </td>
                     <td className="px-4 py-3">
                       {isUsed ? (
