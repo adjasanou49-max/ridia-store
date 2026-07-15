@@ -28,7 +28,16 @@ jest.mock('./ProductService', () => ({
   productService: { getUnitPriceForQuantity: jest.fn(() => 1000) },
 }));
 jest.mock('./LoyaltyService', () => ({
-  loyaltyService: { getOrCreateAccount: jest.fn(), redeemPoints: jest.fn() },
+  loyaltyService: {
+    getOrCreateAccount: jest.fn(),
+    redeemPoints: jest.fn(),
+    // Réduction de palier de fidélité (Argent/Or/Platine) - 0 par défaut
+    // dans les tests existants, qui ne testent pas ce comportement.
+    getDiscountPercentForUser: jest.fn().mockResolvedValue(0),
+  },
+}));
+jest.mock('./SalesAgentService', () => ({
+  salesAgentService: { findActiveByCode: jest.fn().mockResolvedValue(null) },
 }));
 jest.mock('./ReferralService', () => ({ referralService: {} }));
 jest.mock('./WalletService', () => ({
