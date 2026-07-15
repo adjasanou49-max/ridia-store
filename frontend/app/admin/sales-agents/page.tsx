@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
-import { formatXof } from '@/lib/utils';
+import { formatXof, formatDate } from '@/lib/utils';
 
 interface AgentPerformance {
   month: string;
@@ -14,6 +15,16 @@ interface AgentPerformance {
   thresholdMet: boolean;
   commissionPercent: number;
   commissionOwedXof: number;
+}
+
+interface AgentOrder {
+  id: string;
+  orderNumber: string;
+  status: string;
+  totalXof: number;
+  createdAt: string;
+  customerFirstName: string;
+  productsSummary: string;
 }
 
 interface SalesAgent {
@@ -118,7 +129,15 @@ function AgentCard({
 }) {
   const [commissionPercent, setCommissionPercent] = useState(String(agent.commissionPercent));
   const [monthlyThresholdXof, setMonthlyThresholdXof] = useState(String(agent.monthlyThresholdXof));
+  const [showOrders, setShowOrders] = useState(false);
   const perf = agent.currentMonth;
+
+  const { data: orders } = useQuery({
+    queryKey: ['admin', 'sales-agents', agent.id, 'orders'],
+    queryFn: async () =>
+      (await api.get<{ items: AgentOrder[]; total: number }>(`/admin/sales-agents/${agent.id}/orders`)).data,
+    enabled: showOrders,
+  });
 
   return (
     <div className="bg-white p-4 rounded-xl border border-gray-100">
@@ -163,6 +182,33 @@ function AgentCard({
           <p className="font-semibold text-brand-600">{formatXof(perf.commissionOwedXof)}</p>
         </div>
       </div>
+
+      <button
+        onClick={() => setShowOrders((v) => !v)}
+        className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 mb-2"
+      >
+        {showOrders ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+        Voir ses ventes ({perf.orderCount} ce mois)
+      </button>
+
+      {showOrders && (
+        <div className="mb-3 pb-3 border-b border-gray-100">
+          {orders && orders.items.length > 0 ? (
+            <div className="space-y-1.5">
+              {orders.items.map((o) => (
+                <div key={o.id} className="flex items-center justify-between text-xs">
+                  <span className="text-gray-600 truncate">
+                    {o.customerFirstName} — {o.productsSummary} · {formatDate(o.createdAt)}
+                  </span>
+                  <span className="font-medium shrink-0 ml-2">{formatXof(o.totalXof)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">Aucune vente pour l&apos;instant.</p>
+          )}
+        </div>
+      )}
 
       {isEditing ? (
         <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-gray-100">
