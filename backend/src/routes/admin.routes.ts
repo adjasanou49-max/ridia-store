@@ -744,7 +744,12 @@ router.post(
   authorize(UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const expiresInHours = req.body.expiresInHours ? Number(req.body.expiresInHours) : 72;
-    const intendedRole = req.body.intendedRole === 'PURCHASING_AGENT' ? UserRole.PURCHASING_AGENT : UserRole.ADMIN;
+    const intendedRole =
+      req.body.intendedRole === 'PURCHASING_AGENT'
+        ? UserRole.PURCHASING_AGENT
+        : req.body.intendedRole === 'SELLER'
+          ? UserRole.SELLER
+          : UserRole.ADMIN;
     const invite = await adminInviteService.generateCode(req.auth!.userId, expiresInHours, intendedRole);
     res.status(201).json(invite);
   })
