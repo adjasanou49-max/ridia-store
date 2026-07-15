@@ -30,6 +30,10 @@ export const env = {
   WAVE: {
     apiKey: required('WAVE_API_KEY'),
     mode: required('WAVE_MODE', 'mock'),
+    // Secret fourni par Wave à l'enregistrement du webhook (Business Portal ->
+    // Developers -> Webhooks) - sert à vérifier que les notifications de
+    // paiement viennent vraiment de Wave. Vide en mode mock, pas de crash.
+    webhookSecret: required('WAVE_WEBHOOK_SECRET'),
   },
   ORANGE_MONEY: {
     clientId: required('ORANGE_MONEY_CLIENT_ID'),
