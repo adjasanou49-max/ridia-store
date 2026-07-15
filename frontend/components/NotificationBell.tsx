@@ -26,9 +26,14 @@ export function NotificationBell() {
   // Le clic sur le fond (ci-dessous) ne suffit pas : un tap sur la bottom nav
   // passe par-dessus (elle a son propre z-index) et ne déclenche jamais ce
   // clic, donc le panneau restait ouvert par-dessus la page suivante.
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  // Ajustement pendant le rendu plutôt que setState dans un effet (évite un
+  // rendu en cascade inutile) - pattern recommandé par React pour "réinitialiser
+  // un état quand une prop/valeur externe change".
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    if (open) setOpen(false);
+  }
 
   const { data: unread } = useQuery({
     queryKey: ['notifications', 'unread-count'],
