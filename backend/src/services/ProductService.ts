@@ -89,6 +89,48 @@ const TRANSLATABLE_LANGS = ['en', 'es', 'pt'];
 
 export class ProductService {
   /**
+   * Traduit le nom des catégories top-level + leurs enfants vers la langue
+   * d'affichage, avec le même cache que les produits (table
+   * CategoryTranslation). Contrairement aux produits, tout tient en un seul
+   * lot puisqu'il y a très peu de catégories (pas de pagination à gérer).
+   */
+  async withCategoryDisplayLanguage<
+    T extends { id: string; name: string; children?: { id: string; name: string }[] },
+  >(categories: T[], lang?: string): Promise<T[]> {
+    if (!lang || !TRANSLATABLE_LANGS.includes(lang) || categories.length === 0) return categories;
+
+    const allIds = categories.flatMap((c) => [c.id, ...(c.children ?? []).map((child) => child.id)]);
+    const cached = await prisma.categoryTranslation.findMany({
+      where: { categoryId: { in: allIds }, language: lang },
+    });
+    const cacheMap = new Map(cached.map((c) => [c.categoryId, c.name]));
+
+    const translateOne = async (id: string, name: string): Promise<string> => {
+      const hit = cacheMap.get(id);
+      if (hit) return hit;
+      const translated = await translationAdapter.translate(name, lang, 'fr');
+      prisma.categoryTranslation
+        .upsert({
+          where: { categoryId_language: { categoryId: id, language: lang } },
+          create: { categoryId: id, language: lang, name: translated },
+          update: { name: translated },
+        })
+        .catch((err) => logger.error('Échec cache traduction catégorie', { categoryId: id, lang, error: err.message }));
+      return translated;
+    };
+
+    return Promise.all(
+      categories.map(async (cat) => ({
+        ...cat,
+        name: await translateOne(cat.id, cat.name),
+        children: cat.children
+          ? await Promise.all(cat.children.map(async (child) => ({ ...child, name: await translateOne(child.id, child.name) })))
+          : cat.children,
+      }))
+    );
+  }
+
+  /**
    * Traduit nom + description d'une liste de produits vers la langue
    * d'affichage du client, avec cache (table ProductTranslation) - un
    * produit n'est retraduit qu'une seule fois par langue, jamais à chaque
