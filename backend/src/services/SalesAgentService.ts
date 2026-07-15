@@ -101,6 +101,56 @@ export class SalesAgentService {
     return { code: agent.code, commissionPercent: agent.commissionPercent, current, previous };
   }
 
+  /**
+   * Liste des ventes attribuées à l'agent, pour qu'il puisse suivre/vérifier
+   * son propre travail. Volontairement limité : prénom du client seulement
+   * (pas nom complet/téléphone/adresse - ça reste une donnée client privée,
+   * pas nécessaire pour ce que l'agent a besoin de faire), et aucune donnée
+   * financière interne (coût, marge, commission vendeur).
+   */
+  async getMyOrders(userId: string, page = 1, pageSize = 20) {
+    const agent = await prisma.salesAgent.findUnique({ where: { userId } });
+    if (!agent) throw new AppError('Aucun profil agent commercial pour ce compte', 404);
+    return this.getOrdersByAgentId(agent.id, page, pageSize);
+  }
+
+  /** Même liste, mais consultable par le SUPER_ADMIN pour vérifier avant de payer une commission. */
+  async getOrdersByAgentId(agentId: string, page = 1, pageSize = 20) {
+    const [items, total] = await Promise.all([
+      prisma.order.findMany({
+        where: { salesAgentId: agentId },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          totalXof: true,
+          createdAt: true,
+          user: { select: { firstName: true } },
+          items: { select: { productName: true, quantity: true }, take: 3 },
+        },
+      }),
+      prisma.order.count({ where: { salesAgentId: agentId } }),
+    ]);
+
+    return {
+      items: items.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        status: o.status,
+        totalXof: Number(o.totalXof),
+        createdAt: o.createdAt,
+        customerFirstName: o.user.firstName,
+        productsSummary: o.items.map((i) => `${i.productName} ×${i.quantity}`).join(', '),
+      })),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
   async listAllWithCurrentMonth() {
     const agents = await prisma.salesAgent.findMany({
       include: { user: { select: { firstName: true, lastName: true, email: true } } },
