@@ -49,7 +49,8 @@ router.post(
       data.customerName,
       data.couponCode,
       data.pointsToRedeem,
-      data.walletAmountToUse
+      data.walletAmountToUse,
+      data.agentCode
     );
     res.status(201).json(result);
   })
