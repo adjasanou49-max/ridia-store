@@ -9,6 +9,7 @@ import { productService } from './ProductService';
 import { loyaltyService } from './LoyaltyService';
 import { referralService } from './ReferralService';
 import { couponService } from './CouponService';
+import { salesAgentService } from './SalesAgentService';
 import { walletService } from './WalletService';
 
 const STOCK_RESERVATION_MINUTES = 30;
@@ -118,7 +119,8 @@ export class OrderService {
     customerName: string,
     couponCode?: string,
     pointsToRedeem?: number,
-    walletAmountToUse?: number
+    walletAmountToUse?: number,
+    agentCode?: string
   ) {
     const cartItems = await prisma.cartItem.findMany({
       where: { userId },
@@ -153,6 +155,11 @@ export class OrderService {
       discountXof += result.discountXof;
       appliedCoupon = result.coupon;
     }
+
+    // Code agent commercial optionnel - pure attribution pour le calcul de sa
+    // commission, aucune réduction pour le client. Un code invalide n'est
+    // jamais bloquant (silencieux), comme le code de parrainage à l'inscription.
+    const salesAgent = agentCode ? await salesAgentService.findActiveByCode(agentCode) : null;
 
     // Points de fidélité optionnels - le montant est calculé ici pour le total,
     // mais les points ne sont réellement débités qu'une fois la commande confirmée
@@ -190,6 +197,7 @@ export class OrderService {
           shippingFeeXof,
           discountXof,
           couponCode: couponCode?.toUpperCase(),
+          salesAgentId: salesAgent?.id,
           totalXof,
           items: {
             create: cartItems.map((item) => {
