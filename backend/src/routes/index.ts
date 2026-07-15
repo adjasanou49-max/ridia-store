@@ -14,6 +14,7 @@ import scrapeImportRoutes from './scrapeImport.routes';
 import orderFulfillmentRoutes from './orderFulfillment.routes';
 import walletRoutes from './wallet.routes';
 import supportRoutes from './support.routes';
+import salesAgentRoutes from './sales-agent.routes';
 
 const router = Router();
 
@@ -34,5 +35,6 @@ router.use('/scrape-import', scrapeImportRoutes);
 router.use('/order-fulfillment', orderFulfillmentRoutes);
 router.use('/wallet', walletRoutes);
 router.use('/support', supportRoutes);
+router.use('/sales-agent', salesAgentRoutes);
 
 export default router;
