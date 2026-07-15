@@ -21,8 +21,13 @@ interface BeforeInstallPromptEvent extends Event {
  */
 export function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showIosInstructions, setShowIosInstructions] = useState(false);
-  const [visible, setVisible] = useState(false);
+  // showIosInstructions et visible étaient deux setState séparés déclenchés
+  // ensemble dans le même effet (rendu en cascade signalé par le linter) -
+  // regroupés en un seul état pour n'entraîner qu'un seul rendu.
+  const [display, setDisplay] = useState<{ visible: boolean; showIosInstructions: boolean }>({
+    visible: false,
+    showIosInstructions: false,
+  });
 
   useEffect(() => {
     const isStandalone =
@@ -34,15 +39,18 @@ export function InstallPrompt() {
     const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
 
     if (isIos) {
-      setShowIosInstructions(true);
-      setVisible(true);
+      // Lecture navigateur au montage uniquement (deps vides, jamais répété -
+      // pas de rendu en cascade réel), nécessaire ici pour éviter une
+      // incohérence d'hydratation SSR (window indisponible pendant le rendu serveur).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDisplay({ visible: true, showIosInstructions: true });
       return;
     }
 
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setVisible(true);
+      setDisplay({ visible: true, showIosInstructions: false });
     };
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
@@ -50,7 +58,7 @@ export function InstallPrompt() {
 
   const dismiss = () => {
     localStorage.setItem(DISMISS_KEY, '1');
-    setVisible(false);
+    setDisplay((d) => ({ ...d, visible: false }));
   };
 
   const handleInstall = async () => {
@@ -58,10 +66,10 @@ export function InstallPrompt() {
     await deferredPrompt.prompt();
     await deferredPrompt.userChoice;
     setDeferredPrompt(null);
-    setVisible(false);
+    setDisplay((d) => ({ ...d, visible: false }));
   };
 
-  if (!visible) return null;
+  if (!display.visible) return null;
 
   return (
     <div className="fixed bottom-16 md:bottom-4 left-3 right-3 z-50 flex items-center gap-3 rounded-2xl bg-gray-900 px-4 py-3 text-white shadow-lg md:left-auto md:right-4 md:max-w-sm">
@@ -70,7 +78,7 @@ export function InstallPrompt() {
       </div>
       <div className="flex-1 text-sm">
         <p className="font-semibold">Installer Ridia Store</p>
-        {showIosInstructions ? (
+        {display.showIosInstructions ? (
           <p className="text-xs text-gray-300">
             Appuie sur Partager, puis « Sur l&apos;écran d&apos;accueil ».
           </p>
@@ -78,7 +86,7 @@ export function InstallPrompt() {
           <p className="text-xs text-gray-300">Accès rapide, plein écran, sans navigateur.</p>
         )}
       </div>
-      {!showIosInstructions && (
+      {!display.showIosInstructions && (
         <button
           onClick={handleInstall}
           className="flex-shrink-0 rounded-full bg-brand-500 px-3 py-1.5 text-xs font-semibold hover:bg-brand-600"
