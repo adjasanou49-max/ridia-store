@@ -50,6 +50,8 @@ interface SearchFilters {
   pageSize?: number;
   /** Filtre par valeurs d'attribut, ex: { "Couleur": "Rouge", "Taille": "L" } */
   attributes?: Record<string, string>;
+  /** Utilisé par la page admin "Mise en avant" pour lister les produits déjà en avant */
+  isFeatured?: boolean;
 }
 
 // Champs sûrs à exposer publiquement (jamais costPriceCny / exchangeRate / costPriceXof /
@@ -69,6 +71,7 @@ const PUBLIC_PRODUCT_SELECT = {
   weight: true,
   tags: true,
   status: true,
+  isFeatured: true,
   viewCount: true,
   salesCount: true,
   rating: true,
@@ -359,6 +362,7 @@ export class ProductService {
       status: ProductStatus.ACTIVE,
       ...(filters.categoryId && { categoryId: filters.categoryId }),
       ...(filters.sellerId && { sellerId: filters.sellerId }),
+      ...(filters.isFeatured !== undefined && { isFeatured: filters.isFeatured }),
       ...(filters.inStockOnly && { stockQuantity: { gt: 0 } }),
       ...(filters.minPrice || filters.maxPrice
         ? {
