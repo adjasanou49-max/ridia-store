@@ -16,10 +16,15 @@ export default function ActiverAdminPage() {
     setError(null);
     setLoading(true);
     try {
-      await api.post('/auth/redeem-admin-code', { code: code.trim() });
+      const { data } = await api.post<{ role: 'ADMIN' | 'SELLER' | 'PURCHASING_AGENT' }>(
+        '/auth/redeem-admin-code',
+        { code: code.trim() }
+      );
       setSuccess(true);
+      const destination =
+        data.role === 'SELLER' ? '/seller/dashboard' : data.role === 'PURCHASING_AGENT' ? '/agent' : '/admin/dashboard';
       setTimeout(() => {
-        window.location.href = '/admin/dashboard'; // rechargement complet pour rafraîchir le rôle
+        window.location.href = destination; // rechargement complet pour rafraîchir le rôle
       }, 1500);
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Code invalide');
@@ -38,7 +43,7 @@ export default function ActiverAdminPage() {
 
   return (
     <div className="max-w-md mx-auto px-4 py-16">
-      <h1 className="text-2xl font-bold mb-2 text-center">Activer un accès admin</h1>
+      <h1 className="text-2xl font-bold mb-2 text-center">Activer un code d&apos;accès</h1>
       <p className="text-sm text-gray-500 text-center mb-6">
         Entre le code que le propriétaire t&apos;a transmis. Il ne fonctionne qu&apos;une seule
         fois.
@@ -46,9 +51,7 @@ export default function ActiverAdminPage() {
 
       <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
         {success ? (
-          <p className="text-sm text-green-600 text-center">
-            ✅ Accès admin activé ! Redirection...
-          </p>
+          <p className="text-sm text-green-600 text-center">✅ Accès activé ! Redirection...</p>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{error}</div>}
@@ -56,7 +59,7 @@ export default function ActiverAdminPage() {
               required
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="ADMIN-XXXXXXXXXX"
+              placeholder="ADMIN-XXXXXXXXXX / SELLER-XXXXXXXXXX"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-center font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
             <button
