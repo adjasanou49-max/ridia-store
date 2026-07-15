@@ -52,6 +52,7 @@ export const createOrderSchema = z.object({
   couponCode: z.string().optional(),
   pointsToRedeem: z.number().int().nonnegative().optional(),
   walletAmountToUse: z.number().nonnegative().optional(),
+  agentCode: z.string().optional(),
 });
 
 export const sellerApplicationSchema = z.object({
