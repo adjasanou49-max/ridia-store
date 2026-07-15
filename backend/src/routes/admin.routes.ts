@@ -9,6 +9,7 @@ import { contentModerationAgent } from '../integrations/ai/ContentModerationAgen
 import { disputeService } from '../services/DisputeService';
 import { couponService } from '../services/CouponService';
 import { adminInviteService } from '../services/AdminInviteService';
+import { salesAgentService } from '../services/SalesAgentService';
 import { createCouponSchema, adminUpdateOrderStatusSchema } from '../utils/validators';
 import { env } from '../config/env';
 import { UserRole } from '@prisma/client';
@@ -783,9 +784,39 @@ router.post(
           ? UserRole.SELLER
           : req.body.intendedRole === 'MARKETING_AGENT'
             ? UserRole.MARKETING_AGENT
-            : UserRole.ADMIN;
-    const invite = await adminInviteService.generateCode(req.auth!.userId, expiresInHours, intendedRole);
+            : req.body.intendedRole === 'SALES_AGENT'
+              ? UserRole.SALES_AGENT
+              : UserRole.ADMIN;
+    const invite = await adminInviteService.generateCode(req.auth!.userId, expiresInHours, intendedRole, {
+      commissionPercent: req.body.commissionPercent ? Number(req.body.commissionPercent) : undefined,
+      monthlyThresholdXof: req.body.monthlyThresholdXof ? Number(req.body.monthlyThresholdXof) : undefined,
+    });
     res.status(201).json(invite);
+  })
+);
+
+// ---------------- Agents commerciaux (contrats de commission) - SUPER_ADMIN exclusivement ----------------
+// Sensible : conditions financières négociées individuellement, pas pour un ADMIN classique.
+router.get(
+  '/sales-agents',
+  authorize(UserRole.SUPER_ADMIN),
+  asyncHandler(async (_req, res) => {
+    const agents = await salesAgentService.listAllWithCurrentMonth();
+    res.json(agents);
+  })
+);
+
+router.patch(
+  '/sales-agents/:id',
+  authorize(UserRole.SUPER_ADMIN),
+  asyncHandler(async (req, res) => {
+    const { commissionPercent, monthlyThresholdXof, status } = req.body;
+    const agent = await salesAgentService.updateTerms(req.params.id, {
+      commissionPercent: commissionPercent !== undefined ? Number(commissionPercent) : undefined,
+      monthlyThresholdXof: monthlyThresholdXof !== undefined ? Number(monthlyThresholdXof) : undefined,
+      status,
+    });
+    res.json(agent);
   })
 );
 
