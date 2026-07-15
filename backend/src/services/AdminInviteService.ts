@@ -1,9 +1,19 @@
 import { nanoid } from 'nanoid';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma, UserRole, SellerStatus } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AppError } from '../middleware/errorHandler';
 
-const INVITABLE_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.PURCHASING_AGENT];
+const INVITABLE_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.PURCHASING_AGENT, UserRole.SELLER];
+
+/** Slug unique dérivé du nom - garde ridia-store cohérent avec le reste (categories, etc.) */
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
 
 export class AdminInviteService {
   /**
@@ -16,7 +26,8 @@ export class AdminInviteService {
     if (!INVITABLE_ROLES.includes(intendedRole)) {
       throw new AppError("Rôle invalide pour un code d'invitation", 422);
     }
-    const prefix = intendedRole === UserRole.PURCHASING_AGENT ? 'AGENT' : 'ADMIN';
+    const prefix =
+      intendedRole === UserRole.PURCHASING_AGENT ? 'AGENT' : intendedRole === UserRole.SELLER ? 'SELLER' : 'ADMIN';
     const code = `${prefix}-${nanoid(10).toUpperCase()}`;
     return prisma.adminInviteCode.create({
       data: {
@@ -49,7 +60,7 @@ export class AdminInviteService {
    * atomique via updateMany conditionné sur usedBy: null ; seule la requête
    * dont le updateMany affecte réellement une ligne peut continuer.
    */
-  async redeemCode(userId: string, code: string) {
+  async redeemCode(userId: string, code: string): Promise<UserRole> {
     const invite = await prisma.adminInviteCode.findUnique({ where: { code } });
 
     if (!invite) throw new AppError('Code invalide', 422);
@@ -78,7 +89,34 @@ export class AdminInviteService {
       }
 
       await tx.user.update({ where: { id: userId }, data: { role: invite.intendedRole } });
+
+      // Un rôle SELLER seul ne suffit pas : les routes produits exigent un
+      // req.auth.sellerId réel (voir product.routes.ts), donc sans ce profil
+      // la personne invitée se retrouverait avec un rôle "vendeur" mais
+      // aucun moyen d'ajouter un produit - le même piège que rencontré avec
+      // le compte admin avant qu'on lui crée sa propre boutique.
+      if (invite.intendedRole === UserRole.SELLER) {
+        const baseSlug = slugify(`${user.firstName}-${user.lastName}`) || 'boutique';
+        let slug = baseSlug;
+        let attempt = 1;
+        while (await tx.seller.findUnique({ where: { storeSlug: slug } })) {
+          slug = `${baseSlug}-${++attempt}`;
+        }
+        await tx.seller.upsert({
+          where: { userId },
+          create: {
+            userId,
+            storeName: `${user.firstName} ${user.lastName}`,
+            storeSlug: slug,
+            status: SellerStatus.APPROVED,
+            approvedAt: new Date(),
+          },
+          update: {},
+        });
+      }
     });
+
+    return invite.intendedRole;
   }
 }
 
