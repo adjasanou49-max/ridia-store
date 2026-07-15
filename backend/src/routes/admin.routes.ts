@@ -15,7 +15,7 @@ import { UserRole } from '@prisma/client';
 
 const router = Router();
 
-router.use(authenticate, authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN));
+router.use(authenticate, authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MARKETING_AGENT));
 
 router.get(
   '/dashboard',
@@ -139,6 +139,7 @@ router.get(
 
 router.get(
   '/sellers/pending',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (_req, res) => {
     const sellers = await prisma.seller.findMany({
       where: { status: 'PENDING' },
@@ -160,6 +161,7 @@ router.get(
 
 router.patch(
   '/sellers/:id/approve',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const seller = await sellerService.approveSeller(req.params.id);
     res.json(seller);
@@ -168,6 +170,7 @@ router.patch(
 
 router.patch(
   '/sellers/:id/suspend',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const { reason } = req.body;
     const seller = await sellerService.suspendSeller(req.params.id, reason);
@@ -177,6 +180,7 @@ router.patch(
 
 router.get(
   '/products/pending',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const products = await prisma.product.findMany({
       where: { status: 'PENDING_REVIEW' },
@@ -205,6 +209,7 @@ router.get(
 
 router.patch(
   '/products/:id/approve',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const product = await prisma.product.update({
       where: { id: req.params.id },
@@ -217,6 +222,7 @@ router.patch(
 
 router.patch(
   '/products/:id/reject',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const product = await prisma.product.update({
       where: { id: req.params.id },
@@ -227,8 +233,28 @@ router.patch(
   })
 );
 
+// Mise en avant à l'accueil (merchandising) - c'est le levier principal de
+// l'Agent Marketing sur le catalogue : il ne peut ni approuver/rejeter un
+// produit (trust & safety) ni changer son prix (vendeur/marge), seulement
+// décider ce qui est mis en avant.
+router.patch(
+  '/products/:id/featured',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MARKETING_AGENT),
+  asyncHandler(async (req, res) => {
+    const { isFeatured } = req.body;
+    if (typeof isFeatured !== 'boolean') throw new AppError('isFeatured (booléen) requis', 422);
+    const product = await prisma.product.update({
+      where: { id: req.params.id },
+      data: { isFeatured },
+      select: { id: true, name: true, isFeatured: true },
+    });
+    res.json(product);
+  })
+);
+
 router.get(
   '/orders',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const { status, page, pageSize, dateFrom, dateTo } = req.query;
     const take = pageSize ? Number(pageSize) : 30;
@@ -267,6 +293,7 @@ router.get(
 
 router.get(
   '/orders/:id',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const order = await orderService.getOrderByIdAdmin(req.params.id);
 
@@ -282,6 +309,7 @@ router.get(
 
 router.patch(
   '/orders/:id/status',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const { status, note } = adminUpdateOrderStatusSchema.parse(req.body);
     const order = await orderService.adminUpdateOrderStatus(req.params.id, status, note);
@@ -291,6 +319,7 @@ router.patch(
 
 router.get(
   '/users',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const { page, pageSize, q } = req.query;
     const take = pageSize ? Number(pageSize) : 30;
@@ -363,6 +392,7 @@ export function canDeactivateTarget(actorRole: string | undefined, targetRole: s
 // Désactiver un compte (ban) - ADMIN ou SUPER_ADMIN
 router.patch(
   '/users/:id/deactivate',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const target = await prisma.user.findUnique({ where: { id: req.params.id }, select: { role: true } });
     if (!target) throw new AppError('Utilisateur non trouvé', 404);
@@ -678,6 +708,7 @@ router.post(
 // ---------------- Litiges (visibles ADMIN + SUPER_ADMIN) ----------------
 router.get(
   '/disputes',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const disputes = await disputeService.getAllDisputes(req.query.status as string | undefined);
     res.json(disputes);
@@ -686,6 +717,7 @@ router.get(
 
 router.patch(
   '/disputes/:id/resolve',
+  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   asyncHandler(async (req, res) => {
     const { resolution, outcome } = req.body;
     if (!['RESOLVED_REFUNDED', 'RESOLVED_REJECTED'].includes(outcome)) {
@@ -696,10 +728,10 @@ router.patch(
   })
 );
 
-// ---------------- Codes promo - SUPER_ADMIN exclusivement ----------------
+// ---------------- Codes promo - SUPER_ADMIN + Agent Marketing ----------------
 router.get(
   '/coupons',
-  authorize(UserRole.SUPER_ADMIN),
+  authorize(UserRole.SUPER_ADMIN, UserRole.MARKETING_AGENT),
   asyncHandler(async (_req, res) => {
     const coupons = await couponService.listAll();
     res.json(coupons);
@@ -708,7 +740,7 @@ router.get(
 
 router.post(
   '/coupons',
-  authorize(UserRole.SUPER_ADMIN),
+  authorize(UserRole.SUPER_ADMIN, UserRole.MARKETING_AGENT),
   asyncHandler(async (req, res) => {
     const data = createCouponSchema.parse(req.body);
     const coupon = await couponService.create({
@@ -721,7 +753,7 @@ router.post(
 
 router.patch(
   '/coupons/:id/toggle',
-  authorize(UserRole.SUPER_ADMIN),
+  authorize(UserRole.SUPER_ADMIN, UserRole.MARKETING_AGENT),
   asyncHandler(async (req, res) => {
     const coupon = await couponService.toggleActive(req.params.id, req.body.isActive);
     res.json(coupon);
@@ -749,7 +781,9 @@ router.post(
         ? UserRole.PURCHASING_AGENT
         : req.body.intendedRole === 'SELLER'
           ? UserRole.SELLER
-          : UserRole.ADMIN;
+          : req.body.intendedRole === 'MARKETING_AGENT'
+            ? UserRole.MARKETING_AGENT
+            : UserRole.ADMIN;
     const invite = await adminInviteService.generateCode(req.auth!.userId, expiresInHours, intendedRole);
     res.status(201).json(invite);
   })
