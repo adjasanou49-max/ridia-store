@@ -275,7 +275,7 @@ router.get(
 // Public: list categories
 router.get(
   '/meta/categories',
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const categories = await prisma.category.findMany({
       where: { isActive: true, parentId: null },
       select: {
@@ -296,7 +296,8 @@ router.get(
       },
       orderBy: { sortOrder: 'asc' },
     });
-    res.json(categories);
+    const translated = await productService.withCategoryDisplayLanguage(categories, req.query.lang as string | undefined);
+    res.json(translated);
   })
 );
 
