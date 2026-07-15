@@ -168,8 +168,8 @@ router.post(
   asyncHandler(async (req, res) => {
     const { code } = req.body;
     if (!code) throw new AppError('Code requis', 422);
-    await adminInviteService.redeemCode(req.auth!.userId, code);
-    res.status(204).send();
+    const grantedRole = await adminInviteService.redeemCode(req.auth!.userId, code);
+    res.json({ role: grantedRole });
   })
 );
 
