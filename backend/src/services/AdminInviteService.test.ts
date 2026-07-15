@@ -15,6 +15,10 @@ jest.mock('../config/prisma', () => {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    seller: {
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
+    },
   };
   mockPrisma.$transaction = jest.fn(async (callback: (tx: any) => any) => callback(mockPrisma));
   return { prisma: mockPrisma };
@@ -26,6 +30,7 @@ import { AdminInviteService } from './AdminInviteService';
 const mockedPrisma = prisma as unknown as {
   adminInviteCode: { findUnique: jest.Mock; updateMany: jest.Mock };
   user: { findUnique: jest.Mock; update: jest.Mock };
+  seller: { findUnique: jest.Mock; upsert: jest.Mock };
   $transaction: jest.Mock;
 };
 
@@ -50,7 +55,7 @@ describe('AdminInviteService.redeemCode - correction race condition', () => {
     mockedPrisma.adminInviteCode.updateMany.mockResolvedValue({ count: 1 });
     mockedPrisma.user.update.mockResolvedValue({ ...baseUser, role: UserRole.ADMIN });
 
-    await expect(service.redeemCode('user-1', 'ADMIN-XYZ')).resolves.toBeUndefined();
+    await expect(service.redeemCode('user-1', 'ADMIN-XYZ')).resolves.toBe(UserRole.ADMIN);
 
     expect(mockedPrisma.adminInviteCode.updateMany).toHaveBeenCalledWith({
       where: { id: 'invite-1', usedBy: null },
@@ -105,5 +110,54 @@ describe('AdminInviteService.redeemCode - correction race condition', () => {
       'Ce compte a déjà un rôle spécial'
     );
     expect(mockedPrisma.adminInviteCode.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('crée automatiquement une boutique quand le code accorde le rôle SELLER', async () => {
+    const sellerInvite = { ...baseInvite, code: 'SELLER-XYZ', intendedRole: UserRole.SELLER };
+    const sellerUser = { id: 'user-1', role: UserRole.CUSTOMER, firstName: 'Awa', lastName: 'Traoré' };
+
+    mockedPrisma.adminInviteCode.findUnique.mockResolvedValue(sellerInvite);
+    mockedPrisma.user.findUnique.mockResolvedValue(sellerUser);
+    mockedPrisma.adminInviteCode.updateMany.mockResolvedValue({ count: 1 });
+    mockedPrisma.user.update.mockResolvedValue({ ...sellerUser, role: UserRole.SELLER });
+    // Aucun slug existant en conflit - le premier essai (awa-traore) doit passer direct.
+    mockedPrisma.seller.findUnique.mockResolvedValue(null);
+    mockedPrisma.seller.upsert.mockResolvedValue({ id: 'seller-1', storeSlug: 'awa-traore' });
+
+    await expect(service.redeemCode('user-1', 'SELLER-XYZ')).resolves.toBe(UserRole.SELLER);
+
+    expect(mockedPrisma.seller.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'user-1' },
+        create: expect.objectContaining({
+          userId: 'user-1',
+          storeName: 'Awa Traoré',
+          storeSlug: 'awa-traore',
+        }),
+      })
+    );
+  });
+
+  it('ajoute un suffixe numérique si le slug de boutique déduit du nom existe déjà', async () => {
+    const sellerInvite = { ...baseInvite, code: 'SELLER-XYZ', intendedRole: UserRole.SELLER };
+    const sellerUser = { id: 'user-1', role: UserRole.CUSTOMER, firstName: 'Awa', lastName: 'Traoré' };
+
+    mockedPrisma.adminInviteCode.findUnique.mockResolvedValue(sellerInvite);
+    mockedPrisma.user.findUnique.mockResolvedValue(sellerUser);
+    mockedPrisma.adminInviteCode.updateMany.mockResolvedValue({ count: 1 });
+    mockedPrisma.user.update.mockResolvedValue({ ...sellerUser, role: UserRole.SELLER });
+    // Le slug "awa-traore" existe déjà (un autre vendeur homonyme) - doit retomber sur "awa-traore-2".
+    mockedPrisma.seller.findUnique
+      .mockResolvedValueOnce({ id: 'other-seller', storeSlug: 'awa-traore' })
+      .mockResolvedValueOnce(null);
+    mockedPrisma.seller.upsert.mockResolvedValue({ id: 'seller-2', storeSlug: 'awa-traore-2' });
+
+    await service.redeemCode('user-1', 'SELLER-XYZ');
+
+    expect(mockedPrisma.seller.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ storeSlug: 'awa-traore-2' }),
+      })
+    );
   });
 });
