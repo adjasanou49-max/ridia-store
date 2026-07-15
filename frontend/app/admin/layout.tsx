@@ -17,6 +17,7 @@ import {
   KeyRound,
   Palette,
   PackageCheck,
+  Star,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -31,6 +32,7 @@ const MAIN_NAV: NavItem[] = [
   { href: '/admin/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/admin/sellers', label: 'Vendeurs', icon: Store },
   { href: '/admin/products', label: 'Produits', icon: Package },
+  { href: '/admin/featured', label: 'Mise en avant', icon: Star },
   { href: '/admin/orders', label: 'Commandes', icon: ClipboardList },
   { href: '/admin/users', label: 'Utilisateurs', icon: Users },
   { href: '/admin/disputes', label: 'Litiges', icon: AlertTriangle },
@@ -45,6 +47,14 @@ const OWNER_NAV: NavItem[] = [
   { href: '/admin/invite-codes', label: "Codes d'accès admin", icon: KeyRound },
   { href: '/admin/ai-moderation', label: 'Agent IA', icon: Sparkles },
   { href: '/admin/settings', label: 'Paramètres système', icon: Settings },
+];
+
+// Accès restreint : tableau de bord (lecture) + codes promo uniquement.
+// Jamais vendeurs/produits/commandes/utilisateurs/litiges/paramètres.
+const MARKETING_NAV: NavItem[] = [
+  { href: '/admin/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+  { href: '/admin/featured', label: 'Mise en avant', icon: Star },
+  { href: '/admin/coupons', label: 'Codes promo', icon: Ticket },
 ];
 
 function NavLink({ item, active, mobile = false }: { item: NavItem; active: boolean; mobile?: boolean }) {
@@ -74,27 +84,31 @@ function NavLink({ item, active, mobile = false }: { item: NavItem; active: bool
 }
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  const { user, isLoading, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isLoading, hasAdminAccess, isSuperAdmin, isMarketingAgent } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
     // Double protection côté frontend (le backend refuse déjà les requêtes,
-    // mais on évite d'afficher la page une fraction de seconde à un non-admin)
-    if (!isLoading && (!user || !isAdmin)) {
+    // mais on évite d'afficher la page une fraction de seconde à quelqu'un
+    // sans aucun accès admin)
+    if (!isLoading && (!user || !hasAdminAccess)) {
       router.replace('/');
     }
-  }, [isLoading, user, isAdmin, router]);
+  }, [isLoading, user, hasAdminAccess, router]);
 
   if (isLoading) {
     return <div className="text-center py-20 text-gray-400">Vérification des accès...</div>;
   }
 
-  if (!user || !isAdmin) {
+  if (!user || !hasAdminAccess) {
     return null; // redirection déjà déclenchée
   }
 
-  const allNav = isSuperAdmin ? [...MAIN_NAV, ...OWNER_NAV] : MAIN_NAV;
+  // L'Agent Marketing a un menu à part, volontairement très réduit -
+  // tableau de bord + codes promo, rien d'autre.
+  const allNav = isMarketingAgent ? MARKETING_NAV : isSuperAdmin ? [...MAIN_NAV, ...OWNER_NAV] : MAIN_NAV;
+  const sidebarMain = isMarketingAgent ? MARKETING_NAV : MAIN_NAV;
   const isActive = (href: string) => pathname === href || pathname?.startsWith(href + '/');
 
   return (
@@ -110,7 +124,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <div className="flex gap-8">
         <aside className="w-56 shrink-0 hidden md:block">
           <nav className="space-y-1 sticky top-24">
-            {MAIN_NAV.map((item) => (
+            {sidebarMain.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href)} />
             ))}
             {isSuperAdmin && (
