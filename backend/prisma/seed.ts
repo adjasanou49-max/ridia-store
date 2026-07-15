@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, SellerStatus, ProductStatus } from '@prisma/client';
+import { PrismaClient, UserRole, SellerStatus, ProductStatus, SalesAgentStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -155,6 +155,51 @@ async function main() {
     },
   });
 
+  // Comptes de démo pour les deux nouveaux rôles restreints - évite de devoir
+  // générer et activer un vrai code d'invitation juste pour tester l'accès.
+  // Mêmes identifiants "Demo123!" que le vendeur de démo, faciles à retenir.
+  const marketingPassword = await bcrypt.hash('MarketingDemo123!', 12);
+  await prisma.user.upsert({
+    where: { email: 'marketing-demo@ridia-store.com' },
+    create: {
+      email: 'marketing-demo@ridia-store.com',
+      passwordHash: marketingPassword,
+      firstName: 'Agent',
+      lastName: 'Marketing',
+      role: UserRole.MARKETING_AGENT,
+      emailVerified: true,
+    },
+    update: {},
+  });
+
+  const salesAgentPassword = await bcrypt.hash('AgentDemo123!', 12);
+  const salesAgentUser = await prisma.user.upsert({
+    where: { email: 'agent-commercial-demo@ridia-store.com' },
+    create: {
+      email: 'agent-commercial-demo@ridia-store.com',
+      passwordHash: salesAgentPassword,
+      firstName: 'Agent',
+      lastName: 'Commercial',
+      role: UserRole.SALES_AGENT,
+      emailVerified: true,
+    },
+    update: {},
+  });
+  // Profil SalesAgent avec un code de tracking fixe et lisible pour les tests
+  // manuels (contrairement au code aléatoire généré normalement à l'activation
+  // d'un vrai code d'invitation) - contrat de démo : 5% dès 500 000 FCFA/mois.
+  await prisma.salesAgent.upsert({
+    where: { userId: salesAgentUser.id },
+    create: {
+      userId: salesAgentUser.id,
+      code: 'AGENT-DEMO01',
+      commissionPercent: 5,
+      monthlyThresholdXof: 500_000,
+      status: SalesAgentStatus.ACTIVE,
+    },
+    update: {},
+  });
+
   // Liste noire par défaut de l'agent IA de modération - jamais montrer le fournisseur
   const defaultBlacklist = [
     'dropshipping',
@@ -182,6 +227,7 @@ async function main() {
     priceXof: number;
     images: string[];
     tags?: string[];
+    isFeatured?: boolean;
   }[] = [
     {
       name: 'Robe wax imprimé traditionnel',
@@ -216,6 +262,7 @@ async function main() {
     {
       name: 'Sac à main femme cuir synthétique',
       categorySlug: 'mode-femme',
+      isFeatured: true,
       priceXof: 6500,
       images: ['https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=800'],
     },
@@ -228,6 +275,7 @@ async function main() {
     {
       name: 'Costume homme complet 2 pièces',
       categorySlug: 'mode-homme',
+      isFeatured: true,
       priceXof: 34900,
       images: ['https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=800'],
     },
@@ -258,12 +306,14 @@ async function main() {
     {
       name: 'Montre connectée sport',
       categorySlug: 'electronique',
+      isFeatured: true,
       priceXof: 19900,
       images: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800'],
     },
     {
       name: 'Ensemble casseroles inox 5 pièces',
       categorySlug: 'maison-cuisine',
+      isFeatured: true,
       priceXof: 22900,
       images: ['https://images.unsplash.com/photo-1585442222016-32e4c2a1e6c9?w=800'],
     },
@@ -288,6 +338,7 @@ async function main() {
     {
       name: 'Coffret soin visage hydratant',
       categorySlug: 'beaute-cosmetiques',
+      isFeatured: true,
       priceXof: 8900,
       images: ['https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800'],
     },
@@ -331,12 +382,14 @@ async function main() {
     {
       name: 'Trench Coat Femme Automne',
       categorySlug: 'mode-femme',
+      isFeatured: true,
       priceXof: 22900,
       images: ['https://loremflickr.com/800/800/trenchcoat?lock=206'],
     },
     {
       name: 'Robe de Soirée Sequins',
       categorySlug: 'mode-femme',
+      isFeatured: true,
       priceXof: 24900,
       images: ['https://loremflickr.com/800/800/eveningdress?lock=207'],
     },
@@ -427,6 +480,7 @@ async function main() {
     {
       name: 'Sneakers Running Respirantes',
       categorySlug: 'chaussures',
+      isFeatured: true,
       priceXof: 13900,
       images: ['https://loremflickr.com/800/800/sneakers?lock=242'],
     },
@@ -475,6 +529,7 @@ async function main() {
     {
       name: 'Casque Audio Sans Fil Réduction de Bruit',
       categorySlug: 'electronique',
+      isFeatured: true,
       priceXof: 22900,
       images: ['https://loremflickr.com/800/800/headphones?lock=262'],
     },
@@ -631,6 +686,7 @@ async function main() {
     {
       name: 'Ensemble Bazin Riche Brodé Femme',
       categorySlug: 'tissus-wax-boubous',
+      isFeatured: true,
       priceXof: 29900,
       images: ['https://loremflickr.com/800/800/embroidereddress?lock=320'],
     },
@@ -706,9 +762,12 @@ async function main() {
         stockQuantity: 50,
         status: ProductStatus.ACTIVE,
         tags: p.tags ?? [],
+        isFeatured: p.isFeatured ?? false,
         publishedAt: new Date(),
       },
-      update: {},
+      // Seul isFeatured se resynchronise au reseed (pas prix/stock/description,
+      // qui peuvent avoir été ajustés depuis l'admin entre deux seeds).
+      update: { isFeatured: p.isFeatured ?? false },
     });
 
     for (const [i, url] of p.images.entries()) {
@@ -724,6 +783,8 @@ async function main() {
   console.log('✅ Seed completed');
   console.log(`   Admin: admin@ridia-store.com / ChangeMe123!`);
   console.log(`   Seller: seller-demo@ridia-store.com / SellerDemo123!`);
+  console.log(`   Agent Marketing: marketing-demo@ridia-store.com / MarketingDemo123!`);
+  console.log(`   Agent Commercial: agent-commercial-demo@ridia-store.com / AgentDemo123! (code: AGENT-DEMO01)`);
 }
 
 main()
