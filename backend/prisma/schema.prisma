@@ -250,6 +250,22 @@ model Seller {
 // CATALOG
 // ============================================================================
 
+// Même principe que ProductTranslation, mais pour les noms de catégories
+// (juste le nom, pas de description) - très peu de lignes vu le nombre de
+// catégories, mais évite quand même de retraduire à chaque requête.
+model CategoryTranslation {
+  id         String   @id @default(uuid())
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  language   String
+  name       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([categoryId, language])
+  @@index([categoryId])
+}
+
 model Category {
   id        String     @id @default(uuid())
   name      String
@@ -265,6 +281,7 @@ model Category {
   // marge explicite (import en masse, création rapide). Réglable par l'admin depuis
   // /admin/categories. Si null, on retombe sur la marge globale par défaut (SystemSetting).
   defaultMarginPercent Float?
+  translations CategoryTranslation[]
 
   products Product[]
   attributes CategoryAttribute[]
