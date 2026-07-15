@@ -41,6 +41,7 @@ async function main() {
 
 
   const categories = [
+    // --- Catégories existantes (slugs inchangés, des produits leur sont déjà rattachés) ---
     { name: 'Mode Femme', slug: 'mode-femme' },
     { name: 'Mode Homme', slug: 'mode-homme' },
     { name: 'Chaussures', slug: 'chaussures' },
@@ -48,15 +49,42 @@ async function main() {
     { name: 'Maison & Cuisine', slug: 'maison-cuisine' },
     { name: 'Beauté & Cosmétiques', slug: 'beaute-cosmetiques' },
     { name: 'Tenues Traditionnelles', slug: 'tissus-wax-boubous' },
+    // --- Nouvelles catégories - structure complète façon marketplace pro,
+    // même si tous les rayons ne sont pas encore fournis en produits ---
+    { name: 'Mode Enfant', slug: 'mode-enfant' },
+    { name: 'Sacs & Maroquinerie', slug: 'sacs-maroquinerie' },
+    { name: 'Sous-vêtements & Lingerie', slug: 'sous-vetements-lingerie' },
+    { name: 'Bijoux & Accessoires', slug: 'bijoux-accessoires' },
+    { name: 'Cheveux & Perruques', slug: 'cheveux-perruques' },
+    { name: 'Téléphones & Accessoires', slug: 'telephones-accessoires' },
+    { name: 'Informatique', slug: 'informatique' },
+    { name: 'Décoration Maison', slug: 'decoration-maison' },
+    { name: 'Linge de Maison', slug: 'linge-maison' },
+    { name: 'Électroménager', slug: 'electromenager' },
+    { name: 'Meubles', slug: 'meubles' },
+    { name: 'Jardin & Extérieur', slug: 'jardin-exterieur' },
+    { name: 'Bricolage & Outils', slug: 'bricolage-outils' },
+    { name: 'Auto & Moto', slug: 'auto-moto' },
+    { name: 'Sports & Plein Air', slug: 'sports-plein-air' },
+    { name: 'Jouets & Jeux', slug: 'jouets-jeux' },
+    { name: 'Bébé & Puériculture', slug: 'bebe-puericulture' },
+    { name: 'Papeterie & Bureau', slug: 'papeterie-bureau' },
+    { name: 'Animalerie', slug: 'animalerie' },
+    { name: 'Épicerie & Boissons', slug: 'epicerie-boissons' },
+    { name: 'Santé & Bien-être', slug: 'sante-bien-etre' },
+    { name: 'Événementiel & Fêtes', slug: 'evenementiel-fetes' },
+    { name: 'Instruments de Musique', slug: 'instruments-musique' },
   ];
 
-  for (const cat of categories) {
+  for (const [index, cat] of categories.entries()) {
+    const data = { ...cat, sortOrder: index };
     await prisma.category.upsert({
       where: { slug: cat.slug },
-      create: cat,
-      // update: cat (pas juste {}) pour que renommer une catégorie ici se
-      // répercute bien sur la base existante au prochain `prisma:seed`.
-      update: cat,
+      create: data,
+      // update: data (pas juste {}) pour que renommer/réordonner une
+      // catégorie ici se répercute bien sur la base existante au prochain
+      // `prisma:seed`.
+      update: data,
     });
   }
 
