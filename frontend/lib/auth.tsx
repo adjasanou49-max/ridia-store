@@ -19,8 +19,11 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  isMarketingAgent: boolean;
   isPurchasingAgent: boolean;
   isSeller: boolean;
+  /** Autorisé à entrer dans /admin (le sous-ensemble de pages visibles dépend ensuite du rôle exact) */
+  hasAdminAccess: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -92,8 +95,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     isAdmin: user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN',
     isSuperAdmin: user?.role === 'SUPER_ADMIN',
+    isMarketingAgent: user?.role === 'MARKETING_AGENT',
     isPurchasingAgent: user?.role === 'PURCHASING_AGENT',
     isSeller: user?.role === 'SELLER',
+    hasAdminAccess: user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'MARKETING_AGENT',
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
