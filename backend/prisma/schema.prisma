@@ -27,6 +27,11 @@ enum UserRole {
   // Accès restreint : tableau de bord (lecture), codes promo, mise en avant
   // produits. Ne voit jamais utilisateurs/vendeurs/litiges/paramètres système.
   MARKETING_AGENT
+  // Apporteur d'affaires externe (partenariat/contrat commercial) - a un code
+  // de tracking personnel appliqué au checkout, gagne une commission sur les
+  // ventes qu'il apporte une fois un seuil mensuel atteint. Ne voit que ses
+  // propres statistiques, rien d'autre dans l'admin.
+  SALES_AGENT
   SUPER_ADMIN
 }
 
@@ -150,6 +155,7 @@ model User {
   refreshTokens  RefreshToken[]
   addresses      Address[]
   seller         Seller?
+  salesAgent     SalesAgent?
   orders         Order[]
   cartItems      CartItem[]
   notifications  Notification[]
@@ -527,6 +533,34 @@ model CartItem {
   @@index([expiresAt])
 }
 
+enum SalesAgentStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+// Apporteur d'affaires externe avec un accord commercial négocié (voir
+// UserRole.SALES_AGENT ci-dessus). Un seul profil par utilisateur.
+model SalesAgent {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Code de tracking personnel, appliqué au checkout par le client (comme un
+  // code promo, mais sans réduction pour le client - juste l'attribution).
+  code String @unique
+
+  commissionPercent   Float            @default(5.0)
+  monthlyThresholdXof Decimal          @default(0) @db.Decimal(14, 2)
+  status              SalesAgentStatus @default(ACTIVE)
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code])
+}
+
 // ============================================================================
 // ORDERS
 // ============================================================================
@@ -546,6 +580,11 @@ model Order {
   discountXof     Decimal @default(0) @db.Decimal(14, 2)
   couponCode      String?
   totalXof        Decimal @db.Decimal(14, 2)
+
+  // Attribution à un agent commercial (contrat de commission) - pas de lien
+  // avec le code promo client, purement pour calculer sa commission.
+  salesAgentId String?
+  salesAgent   SalesAgent? @relation(fields: [salesAgentId], references: [id])
 
   items         OrderItem[]
   payments      Payment[]
@@ -806,9 +845,13 @@ model AdminInviteCode {
   id        String    @id @default(uuid())
   code      String    @unique
   createdBy String // userId du SUPER_ADMIN qui a généré ce code
-  // Rôle que la personne obtient en activant ce code - ADMIN ou
-  // PURCHASING_AGENT uniquement (jamais SUPER_ADMIN via un code).
+  // Rôle que la personne obtient en activant ce code - jamais SUPER_ADMIN
+  // via un code.
   intendedRole UserRole  @default(ADMIN)
+  // Uniquement pour intendedRole = SALES_AGENT : conditions du contrat
+  // négociées avant la génération du code (ex: "5% dès 1000$/mois").
+  commissionPercent   Float?
+  monthlyThresholdXof Decimal?  @db.Decimal(14, 2)
   usedBy    String?   @unique // userId de la personne qui l'a activé
   usedAt    DateTime?
   expiresAt DateTime
