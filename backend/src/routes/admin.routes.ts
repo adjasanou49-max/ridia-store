@@ -820,6 +820,16 @@ router.patch(
   })
 );
 
+router.get(
+  '/sales-agents/:id/orders',
+  authorize(UserRole.SUPER_ADMIN),
+  asyncHandler(async (req, res) => {
+    const page = req.query.page ? Number(req.query.page) : 1;
+    const result = await salesAgentService.getOrdersByAgentId(req.params.id, page, 20);
+    res.json(result);
+  })
+);
+
 router.delete(
   '/invite-codes/:id',
   authorize(UserRole.SUPER_ADMIN),
