@@ -45,6 +45,7 @@ export default function CheckoutPage() {
   const [customerPhone, setCustomerPhone] = useState(user?.phone || '');
   const [provider, setProvider] = useState<PaymentProvider>('WAVE');
   const [couponCode, setCouponCode] = useState('');
+  const [agentCode, setAgentCode] = useState('');
   const [discountXof, setDiscountXof] = useState(0);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [applyingCoupon, setApplyingCoupon] = useState(false);
@@ -129,6 +130,7 @@ export default function CheckoutPage() {
         customerPhone,
         customerName,
         couponCode: discountXof > 0 ? couponCode : undefined,
+        agentCode: agentCode || undefined,
         pointsToRedeem: pointsToRedeem > 0 ? pointsToRedeem : undefined,
         walletAmountToUse: walletAmountToUse > 0 ? walletAmountToUse : undefined,
       });
@@ -288,6 +290,18 @@ export default function CheckoutPage() {
           {discountXof > 0 && (
             <p className="text-xs text-green-600 mt-2">✅ Remise de {formatXof(discountXof)} appliquée</p>
           )}
+
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <label className="block text-xs text-gray-400 mb-1">
+              Code agent (optionnel, ne change pas ton prix)
+            </label>
+            <input
+              value={agentCode}
+              onChange={(e) => setAgentCode(e.target.value.toUpperCase())}
+              placeholder="AGENT-XXXXXXXX"
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs uppercase"
+            />
+          </div>
         </div>
 
         {/* Points de fidélité */}
