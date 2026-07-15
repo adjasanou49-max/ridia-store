@@ -10,7 +10,7 @@ import { formatDate } from '@/lib/utils';
 interface InviteCode {
   id: string;
   code: string;
-  intendedRole: 'ADMIN' | 'PURCHASING_AGENT';
+  intendedRole: 'ADMIN' | 'PURCHASING_AGENT' | 'SELLER';
   usedBy: string | null;
   usedAt: string | null;
   expiresAt: string;
@@ -35,7 +35,7 @@ export default function AdminInviteCodesPage() {
 function InviteCodesContent() {
   const queryClient = useQueryClient();
   const [expiresInHours, setExpiresInHours] = useState('72');
-  const [intendedRole, setIntendedRole] = useState<'ADMIN' | 'PURCHASING_AGENT'>('ADMIN');
+  const [intendedRole, setIntendedRole] = useState<'ADMIN' | 'PURCHASING_AGENT' | 'SELLER'>('ADMIN');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const { data: codes, isLoading } = useQuery({
@@ -65,19 +65,21 @@ function InviteCodesContent() {
       <h1 className="text-2xl font-bold mb-1">Codes d&apos;accès admin</h1>
       <p className="text-sm text-gray-500 mb-6">
         Génère un code à usage unique et transmets-le manuellement (email, WhatsApp) à la personne
-        que tu veux nommer admin. Elle l&apos;active elle-même depuis son compte — aucun admin ne
-        peut générer de code pour quelqu&apos;un d&apos;autre, seul toi le peux.
+        concernée — admin, agent d&apos;achat ou vendeur. Elle l&apos;active elle-même depuis son
+        compte ; un compte vendeur reçoit automatiquement sa propre boutique (approuvée d&apos;office,
+        puisqu&apos;invitée directement par toi).
       </p>
 
       <div className="bg-white p-4 rounded-xl border border-gray-100 mb-6 flex items-center gap-3">
         <label className="text-sm text-gray-600">Rôle</label>
         <select
           value={intendedRole}
-          onChange={(e) => setIntendedRole(e.target.value as 'ADMIN' | 'PURCHASING_AGENT')}
+          onChange={(e) => setIntendedRole(e.target.value as 'ADMIN' | 'PURCHASING_AGENT' | 'SELLER')}
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
         >
           <option value="ADMIN">Admin (accès large : produits, clients, avis...)</option>
           <option value="PURCHASING_AGENT">Agent d&apos;achat (uniquement les commandes fournisseur)</option>
+          <option value="SELLER">Vendeur (sa propre boutique, ses produits, ses commandes)</option>
         </select>
         <label className="text-sm text-gray-600">Expire dans</label>
         <select
@@ -119,7 +121,11 @@ function InviteCodesContent() {
                   <tr key={c.id} className="border-t border-gray-100">
                     <td className="px-4 py-3 font-mono">{c.code}</td>
                     <td className="px-4 py-3 text-xs">
-                      {c.intendedRole === 'PURCHASING_AGENT' ? "Agent d'achat" : 'Admin'}
+                      {c.intendedRole === 'PURCHASING_AGENT'
+                        ? "Agent d'achat"
+                        : c.intendedRole === 'SELLER'
+                          ? 'Vendeur'
+                          : 'Admin'}
                     </td>
                     <td className="px-4 py-3">
                       {isUsed ? (
