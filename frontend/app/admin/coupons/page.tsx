@@ -19,12 +19,12 @@ interface Coupon {
 }
 
 export default function AdminCouponsPage() {
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, isMarketingAgent } = useAuth();
 
-  if (!isSuperAdmin) {
+  if (!isSuperAdmin && !isMarketingAgent) {
     return (
       <div className="bg-red-50 text-red-700 p-4 rounded-lg">
-        ⛔ Cette page est réservée au propriétaire (Super Admin).
+        ⛔ Cette page est réservée au propriétaire et à l&apos;Agent Marketing.
       </div>
     );
   }
