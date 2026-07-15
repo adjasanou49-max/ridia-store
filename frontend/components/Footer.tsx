@@ -6,32 +6,32 @@ import { useLanguage } from '@/lib/language';
 export function Footer() {
   const { t } = useLanguage();
 
+  const links = [
+    { href: '/cgv', label: t('footer.cgv') },
+    { href: '/regles-utilisation', label: t('footer.terms') },
+    { href: '/confidentialite', label: t('footer.privacy') },
+    { href: '/retours', label: t('footer.returns') },
+    { href: '/orders', label: t('footer.trackOrder') },
+    { href: '/account/settings', label: t('footer.myAccount') },
+  ];
+
   return (
-    <footer className="border-t border-gray-200 bg-white mt-12">
-      <div className="max-w-7xl mx-auto px-4 py-8 grid md:grid-cols-3 gap-6 text-sm text-gray-500">
-        <div>
-          <p className="font-bold text-brand-600 mb-2">Ridia Store</p>
-          <p>{t('footer.tagline')}</p>
+    <footer className="mt-8 px-4 pb-4">
+      <div className="max-w-7xl mx-auto rounded-2xl border border-gray-100 bg-white p-5 text-sm text-gray-500">
+        <p className="mb-1 font-bold text-brand-600">Ridia Store</p>
+        <p className="mb-4">{t('footer.tagline')}</p>
+
+        <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-gray-100 pt-4">
+          {links.map((link) => (
+            <Link key={link.href} href={link.href} className="hover:text-brand-600">
+              {link.label}
+            </Link>
+          ))}
         </div>
-        <div>
-          <p className="font-medium text-gray-700 mb-2">{t('footer.legal')}</p>
-          <ul className="space-y-1">
-            <li><Link href="/cgv" className="hover:text-brand-600">{t('footer.cgv')}</Link></li>
-            <li><Link href="/regles-utilisation" className="hover:text-brand-600">{t('footer.terms')}</Link></li>
-            <li><Link href="/confidentialite" className="hover:text-brand-600">{t('footer.privacy')}</Link></li>
-            <li><Link href="/retours" className="hover:text-brand-600">{t('footer.returns')}</Link></li>
-          </ul>
-        </div>
-        <div>
-          <p className="font-medium text-gray-700 mb-2">{t('footer.help')}</p>
-          <ul className="space-y-1">
-            <li><Link href="/orders" className="hover:text-brand-600">{t('footer.trackOrder')}</Link></li>
-            <li><Link href="/account/settings" className="hover:text-brand-600">{t('footer.myAccount')}</Link></li>
-          </ul>
-        </div>
-      </div>
-      <div className="text-center text-xs text-gray-400 py-4 border-t border-gray-100">
-        © {new Date().getFullYear()} Ridia Store. {t('footer.rights')}
+
+        <p className="mt-4 border-t border-gray-100 pt-4 text-center text-xs text-gray-400">
+          © {new Date().getFullYear()} Ridia Store. {t('footer.rights')}
+        </p>
       </div>
     </footer>
   );
