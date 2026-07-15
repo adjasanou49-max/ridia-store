@@ -2,7 +2,14 @@
 // Types partagés - doivent rester synchronisés avec backend/prisma/schema.prisma
 // ============================================================================
 
-export type UserRole = 'CUSTOMER' | 'SELLER' | 'ADMIN' | 'PURCHASING_AGENT' | 'MARKETING_AGENT' | 'SUPER_ADMIN';
+export type UserRole =
+  | 'CUSTOMER'
+  | 'SELLER'
+  | 'ADMIN'
+  | 'PURCHASING_AGENT'
+  | 'MARKETING_AGENT'
+  | 'SALES_AGENT'
+  | 'SUPER_ADMIN';
 
 export interface User {
   id: string;
