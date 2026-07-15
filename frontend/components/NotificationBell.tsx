@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell } from 'lucide-react';
 import { api, getAccessToken, API_URL } from '@/lib/api';
@@ -20,6 +21,14 @@ export function NotificationBell() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
+  const pathname = usePathname();
+
+  // Le clic sur le fond (ci-dessous) ne suffit pas : un tap sur la bottom nav
+  // passe par-dessus (elle a son propre z-index) et ne déclenche jamais ce
+  // clic, donc le panneau restait ouvert par-dessus la page suivante.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   const { data: unread } = useQuery({
     queryKey: ['notifications', 'unread-count'],
