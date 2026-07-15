@@ -22,6 +22,16 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Traduction des fiches produit à la demande : le backend traduit
+  // nom/description dans la langue choisie (voir LanguageProvider) et met
+  // en cache le résultat. On ne l'ajoute que sur /products - inutile
+  // ailleurs, et ça évite de polluer les autres requêtes.
+  const language = Cookies.get('ridia_language');
+  if (language && language !== 'fr' && config.url?.includes('/products') && !config.params?.lang) {
+    config.params = { ...config.params, lang: language };
+  }
+
   return config;
 });
 
