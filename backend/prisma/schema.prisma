@@ -294,6 +294,25 @@ model CategoryAttribute {
   @@index([categoryId])
 }
 
+// Cache des traductions de fiches produit (nom + description) par langue
+// d'affichage client (fr/en/es/pt, voir LanguageProvider frontend). Traduit à
+// la demande la première fois qu'un produit est vu dans une langue donnée
+// (via LibreTranslate/DeepL/Microsoft selon TRANSLATION_PROVIDER), puis
+// réutilisé - évite de retraduire à chaque page vue.
+model ProductTranslation {
+  id          String   @id @default(uuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  language    String // 'en', 'es', 'pt' - jamais 'fr' (c'est la langue source, pas de ligne créée)
+  name        String
+  description String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([productId, language])
+  @@index([productId])
+}
+
 model Product {
   id         String   @id @default(uuid())
   sellerId   String
@@ -356,6 +375,7 @@ model Product {
   attributeValues ProductAttributeValue[]
   wishlistItems WishlistItem[]
   reviews  Review[]
+  translations ProductTranslation[]
 
   cartItems  CartItem[]
   orderItems OrderItem[]
