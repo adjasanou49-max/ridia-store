@@ -20,6 +20,7 @@ interface AuthContextValue {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   isMarketingAgent: boolean;
+  isSalesAgent: boolean;
   isPurchasingAgent: boolean;
   isSeller: boolean;
   /** Autorisé à entrer dans /admin (le sous-ensemble de pages visibles dépend ensuite du rôle exact) */
@@ -96,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAdmin: user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN',
     isSuperAdmin: user?.role === 'SUPER_ADMIN',
     isMarketingAgent: user?.role === 'MARKETING_AGENT',
+    isSalesAgent: user?.role === 'SALES_AGENT',
     isPurchasingAgent: user?.role === 'PURCHASING_AGENT',
     isSeller: user?.role === 'SELLER',
     hasAdminAccess: user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'MARKETING_AGENT',
