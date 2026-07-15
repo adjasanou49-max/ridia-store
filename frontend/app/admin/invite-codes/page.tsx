@@ -10,7 +10,9 @@ import { formatDate } from '@/lib/utils';
 interface InviteCode {
   id: string;
   code: string;
-  intendedRole: 'ADMIN' | 'PURCHASING_AGENT' | 'SELLER' | 'MARKETING_AGENT';
+  intendedRole: 'ADMIN' | 'PURCHASING_AGENT' | 'SELLER' | 'MARKETING_AGENT' | 'SALES_AGENT';
+  commissionPercent: number | null;
+  monthlyThresholdXof: number | null;
   usedBy: string | null;
   usedAt: string | null;
   expiresAt: string;
@@ -35,7 +37,11 @@ export default function AdminInviteCodesPage() {
 function InviteCodesContent() {
   const queryClient = useQueryClient();
   const [expiresInHours, setExpiresInHours] = useState('72');
-  const [intendedRole, setIntendedRole] = useState<'ADMIN' | 'PURCHASING_AGENT' | 'SELLER' | 'MARKETING_AGENT'>('ADMIN');
+  const [intendedRole, setIntendedRole] = useState<
+    'ADMIN' | 'PURCHASING_AGENT' | 'SELLER' | 'MARKETING_AGENT' | 'SALES_AGENT'
+  >('ADMIN');
+  const [commissionPercent, setCommissionPercent] = useState('5');
+  const [monthlyThresholdXof, setMonthlyThresholdXof] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const { data: codes, isLoading } = useQuery({
@@ -44,7 +50,14 @@ function InviteCodesContent() {
   });
 
   async function generate() {
-    await api.post('/admin/invite-codes', { expiresInHours: Number(expiresInHours), intendedRole });
+    await api.post('/admin/invite-codes', {
+      expiresInHours: Number(expiresInHours),
+      intendedRole,
+      ...(intendedRole === 'SALES_AGENT' && {
+        commissionPercent: Number(commissionPercent),
+        monthlyThresholdXof: monthlyThresholdXof ? Number(monthlyThresholdXof) : 0,
+      }),
+    });
     queryClient.invalidateQueries({ queryKey: ['admin', 'invite-codes'] });
   }
 
@@ -74,14 +87,43 @@ function InviteCodesContent() {
         <label className="text-sm text-gray-600">Rôle</label>
         <select
           value={intendedRole}
-          onChange={(e) => setIntendedRole(e.target.value as 'ADMIN' | 'PURCHASING_AGENT' | 'SELLER' | 'MARKETING_AGENT')}
+          onChange={(e) =>
+              setIntendedRole(
+                e.target.value as 'ADMIN' | 'PURCHASING_AGENT' | 'SELLER' | 'MARKETING_AGENT' | 'SALES_AGENT'
+              )
+            }
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
         >
           <option value="ADMIN">Admin (accès large : produits, clients, avis...)</option>
           <option value="PURCHASING_AGENT">Agent d&apos;achat (uniquement les commandes fournisseur)</option>
           <option value="SELLER">Vendeur (sa propre boutique, ses produits, ses commandes)</option>
           <option value="MARKETING_AGENT">Agent Marketing (tableau de bord, codes promo, mise en avant produits)</option>
+          <option value="SALES_AGENT">Agent Commercial (contrat de commission sur ses ventes apportées)</option>
         </select>
+        {intendedRole === 'SALES_AGENT' && (
+          <>
+            <label className="text-sm text-gray-600">Commission %</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.5"
+              value={commissionPercent}
+              onChange={(e) => setCommissionPercent(e.target.value)}
+              className="w-20 border border-gray-300 rounded-lg px-2 py-2 text-sm"
+            />
+            <label className="text-sm text-gray-600">Seuil mensuel (FCFA)</label>
+            <input
+              type="number"
+              min="0"
+              step="1000"
+              placeholder="ex: 600000"
+              value={monthlyThresholdXof}
+              onChange={(e) => setMonthlyThresholdXof(e.target.value)}
+              className="w-32 border border-gray-300 rounded-lg px-2 py-2 text-sm"
+            />
+          </>
+        )}
         <label className="text-sm text-gray-600">Expire dans</label>
         <select
           value={expiresInHours}
@@ -128,7 +170,9 @@ function InviteCodesContent() {
                           ? 'Vendeur'
                           : c.intendedRole === 'MARKETING_AGENT'
                             ? 'Agent Marketing'
-                            : 'Admin'}
+                            : c.intendedRole === 'SALES_AGENT'
+                              ? `Agent Commercial (${c.commissionPercent}%, dès ${(c.monthlyThresholdXof ?? 0).toLocaleString('fr-FR')} FCFA/mois)`
+                              : 'Admin'}
                     </td>
                     <td className="px-4 py-3">
                       {isUsed ? (
