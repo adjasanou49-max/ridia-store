@@ -24,6 +24,9 @@ enum UserRole {
   // Accès restreint à l'écran "Commandes fournisseur" uniquement - ne voit
   // jamais produits/utilisateurs/paramètres, contrairement à ADMIN.
   PURCHASING_AGENT
+  // Accès restreint : tableau de bord (lecture), codes promo, mise en avant
+  // produits. Ne voit jamais utilisateurs/vendeurs/litiges/paramètres système.
+  MARKETING_AGENT
   SUPER_ADMIN
 }
 
@@ -331,6 +334,10 @@ model Product {
   tags       String[]
 
   status ProductStatus @default(PENDING_REVIEW)
+
+  // Mise en avant à l'accueil - géré par l'Agent Marketing (voir
+  // PATCH /admin/products/:id/featured), distinct du statut de modération.
+  isFeatured Boolean @default(false)
 
   viewCount   Int   @default(0)
   salesCount  Int   @default(0)
