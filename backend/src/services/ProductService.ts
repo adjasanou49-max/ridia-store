@@ -6,6 +6,7 @@ import { AppError } from '../middleware/errorHandler';
 import { env } from '../config/env';
 import { translationAdapter } from '../integrations/translation/TranslationAdapter';
 import { contentModerationAgent } from '../integrations/ai/ContentModerationAgent';
+import { logger } from '../config/logger';
 
 interface PriceTierInput {
   minQuantity: number;
@@ -52,6 +53,8 @@ interface SearchFilters {
   attributes?: Record<string, string>;
   /** Utilisé par la page admin "Mise en avant" pour lister les produits déjà en avant */
   isFeatured?: boolean;
+  /** Langue d'affichage du client ('en'/'es'/'pt') - voir withDisplayLanguage */
+  lang?: string;
 }
 
 // Champs sûrs à exposer publiquement (jamais costPriceCny / exchangeRate / costPriceXof /
@@ -80,7 +83,55 @@ const PUBLIC_PRODUCT_SELECT = {
   createdAt: true,
 } satisfies Prisma.ProductSelect;
 
+// Langues d'affichage traduisibles à la demande (voir LanguageProvider frontend).
+// 'fr' n'y figure pas : c'est la langue source dans laquelle tout est saisi/importé.
+const TRANSLATABLE_LANGS = ['en', 'es', 'pt'];
+
 export class ProductService {
+  /**
+   * Traduit nom + description d'une liste de produits vers la langue
+   * d'affichage du client, avec cache (table ProductTranslation) - un
+   * produit n'est retraduit qu'une seule fois par langue, jamais à chaque
+   * page vue. Renvoie les produits tels quels si lang est absent, 'fr', ou
+   * non pris en charge.
+   */
+  private async withDisplayLanguage<T extends { id: string; name: string; description: string }>(
+    products: T[],
+    lang?: string
+  ): Promise<T[]> {
+    if (!lang || !TRANSLATABLE_LANGS.includes(lang) || products.length === 0) return products;
+
+    const ids = products.map((p) => p.id);
+    const cached = await prisma.productTranslation.findMany({
+      where: { productId: { in: ids }, language: lang },
+    });
+    const cacheMap = new Map(cached.map((c) => [c.productId, c]));
+
+    return Promise.all(
+      products.map(async (product) => {
+        const hit = cacheMap.get(product.id);
+        if (hit) return { ...product, name: hit.name, description: hit.description };
+
+        const [name, description] = await Promise.all([
+          translationAdapter.translate(product.name, lang, 'fr'),
+          translationAdapter.translate(product.description, lang, 'fr'),
+        ]);
+
+        // Écriture en cache best-effort : un échec ici ne doit jamais casser
+        // l'affichage, juste retraduire à la prochaine visite.
+        prisma.productTranslation
+          .upsert({
+            where: { productId_language: { productId: product.id, language: lang } },
+            create: { productId: product.id, language: lang, name, description },
+            update: { name, description },
+          })
+          .catch((err) => logger.error('Échec cache traduction produit', { productId: product.id, lang, error: err.message }));
+
+        return { ...product, name, description };
+      })
+    );
+  }
+
   /** Récupère le taux CNY->XOF actuel : priorité au paramètre admin (SystemSetting), sinon env par défaut */
   async getCurrentExchangeRate(): Promise<number> {
     const setting = await prisma.systemSetting.findUnique({ where: { key: 'cnyToXofRate' } });
@@ -299,7 +350,7 @@ export class ProductService {
   }
 
   /** Vue PUBLIQUE d'un produit - ne renvoie jamais coût CNY / marge / taux de change */
-  async getProductBySlug(slug: string) {
+  async getProductBySlug(slug: string, lang?: string) {
     const product = await prisma.product.findUnique({
       where: { slug },
       select: {
@@ -341,7 +392,8 @@ export class ProductService {
       r.isAnonymous ? { ...r, user: { firstName: 'Client', avatarUrl: null } } : r
     );
 
-    return product;
+    const [translated] = await this.withDisplayLanguage([product], lang);
+    return translated;
   }
 
   /** Vue vendeur (son propre produit) - inclut coût/marge, réservé à son dashboard */
@@ -417,7 +469,7 @@ export class ProductService {
     ]);
 
     return {
-      items,
+      items: await this.withDisplayLanguage(items, filters.lang),
       pagination: {
         page,
         pageSize,
