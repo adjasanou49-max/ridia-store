@@ -22,6 +22,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   SELLER: 'Vendeur',
   ADMIN: 'Admin',
   PURCHASING_AGENT: "Agent d'achat",
+  MARKETING_AGENT: 'Agent Marketing',
   SUPER_ADMIN: 'Super Admin',
 };
 
