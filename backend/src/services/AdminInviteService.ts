@@ -2,12 +2,14 @@ import { nanoid } from 'nanoid';
 import { Prisma, UserRole, SellerStatus } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AppError } from '../middleware/errorHandler';
+import { salesAgentService } from './SalesAgentService';
 
 const INVITABLE_ROLES: UserRole[] = [
   UserRole.ADMIN,
   UserRole.PURCHASING_AGENT,
   UserRole.SELLER,
   UserRole.MARKETING_AGENT,
+  UserRole.SALES_AGENT,
 ];
 
 /** Slug unique dérivé du nom - garde ridia-store cohérent avec le reste (categories, etc.) */
@@ -27,7 +29,14 @@ export class AdminInviteService {
    * pas, la route est la seule porte d'entrée. Le rôle accordé est choisi
    * ici, jamais SUPER_ADMIN via un simple code (trop sensible pour ça).
    */
-  async generateCode(createdByUserId: string, expiresInHours = 72, intendedRole: UserRole = UserRole.ADMIN) {
+  async generateCode(
+    createdByUserId: string,
+    expiresInHours = 72,
+    intendedRole: UserRole = UserRole.ADMIN,
+    // Conditions du contrat, uniquement significatives pour SALES_AGENT
+    // (ex: "5% dès 1000$/mois" négocié par email avant de générer le code).
+    terms?: { commissionPercent?: number; monthlyThresholdXof?: number }
+  ) {
     if (!INVITABLE_ROLES.includes(intendedRole)) {
       throw new AppError("Rôle invalide pour un code d'invitation", 422);
     }
@@ -38,7 +47,9 @@ export class AdminInviteService {
           ? 'SELLER'
           : intendedRole === UserRole.MARKETING_AGENT
             ? 'MARKETING'
-            : 'ADMIN';
+            : intendedRole === UserRole.SALES_AGENT
+              ? 'COMMERCIAL'
+              : 'ADMIN';
     const code = `${prefix}-${nanoid(10).toUpperCase()}`;
     return prisma.adminInviteCode.create({
       data: {
@@ -46,6 +57,10 @@ export class AdminInviteService {
         createdBy: createdByUserId,
         intendedRole,
         expiresAt: new Date(Date.now() + expiresInHours * 3600_000),
+        ...(intendedRole === UserRole.SALES_AGENT && {
+          commissionPercent: terms?.commissionPercent ?? 5.0,
+          monthlyThresholdXof: terms?.monthlyThresholdXof ?? 0,
+        }),
       },
     });
   }
@@ -124,6 +139,20 @@ export class AdminInviteService {
           },
           update: {},
         });
+      }
+
+      // Même logique pour SALES_AGENT : le rôle seul ne sert à rien sans son
+      // code de tracking personnel + les conditions négociées par email
+      // (commissionPercent/monthlyThresholdXof, portées par le code lui-même).
+      if (invite.intendedRole === UserRole.SALES_AGENT) {
+        await salesAgentService.createProfile(
+          userId,
+          {
+            commissionPercent: invite.commissionPercent ?? undefined,
+            monthlyThresholdXof: invite.monthlyThresholdXof ? Number(invite.monthlyThresholdXof) : undefined,
+          },
+          tx
+        );
       }
     });
 
