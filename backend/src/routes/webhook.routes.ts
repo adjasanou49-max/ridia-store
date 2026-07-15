@@ -1,8 +1,10 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
+import crypto from 'crypto';
 import { orderService } from '../services/OrderService';
 import { walletService } from '../services/WalletService';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { logger } from '../config/logger';
+import { env } from '../config/env';
 
 const router = Router();
 
@@ -22,23 +24,67 @@ async function confirmAnyPayment(providerTxnId: string) {
   await walletService.confirmTopUp(providerTxnId);
 }
 
-// Note sécurité : Wave, Orange Money et MTN MoMo n'ont pas de vérification de
-// signature dédiée ici car leurs schémas exacts n'ont pas été confirmés dans
-// la documentation - mieux vaut ne rien vérifier que vérifier un mauvais
-// schéma qui donnerait une fausse confiance. Le vrai filet de sécurité reste
-// `confirmPayment` : il rappelle systématiquement l'API du prestataire
-// (verifyPayment) avant de valider quoi que ce soit,
-// donc un webhook falsifié ne peut jamais, à lui seul, confirmer un paiement.
+/**
+ * Vérifie la signature Wave-Signature (doc officielle : docs.wave.com/webhook).
+ * Format : "t={timestamp},v1={signature}" - HMAC-SHA256 de (timestamp + corps
+ * brut) avec le secret du webhook. Rejette aussi les requêtes de plus de 5
+ * minutes (anti-rejeu), comme recommandé par Wave.
+ *
+ * Ne s'applique qu'en mode live (WAVE_WEBHOOK_SECRET configuré) : en mode
+ * mock il n'y a pas de vrai webhook Wave à vérifier.
+ */
+function verifyWaveSignature(rawBody: string, header: string | undefined): boolean {
+  if (!env.WAVE.webhookSecret) return true; // mode mock, rien à vérifier
+  if (!header) return false;
+
+  const parts = header.split(',');
+  const timestampPart = parts.find((p) => p.startsWith('t='));
+  const timestamp = timestampPart?.split('=')[1];
+  const signatures = parts.filter((p) => p.startsWith('v1=')).map((p) => p.split('=')[1]);
+  if (!timestamp || signatures.length === 0) return false;
+
+  const ageSeconds = Math.abs(Date.now() / 1000 - Number(timestamp));
+  if (ageSeconds > 300) return false; // >5 min, rejeté même côté Wave
+
+  const expected = crypto
+    .createHmac('sha256', env.WAVE.webhookSecret)
+    .update(timestamp + rawBody)
+    .digest('hex');
+
+  // Comparaison à temps constant pour chaque signature candidate (rotation de secret =
+  // parfois 2 signatures valides en même temps, voir doc "Secret Rotation")
+  return signatures.some((sig) => {
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  });
+}
+
 router.post(
   '/wave',
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request & { rawBody?: string }, res) => {
+    const isValid = verifyWaveSignature(req.rawBody ?? '', req.header('Wave-Signature'));
+    if (!isValid) {
+      logger.error('Wave webhook: signature invalide, requête ignorée');
+      // 401 plutôt que de laisser Wave croire que c'est traité - il retentera.
+      return res.status(401).send('Invalid signature');
+    }
+
     logger.info('Wave webhook received', { body: req.body });
-    const providerTxnId = req.body.client_reference;
+    const providerTxnId = req.body?.data?.client_reference ?? req.body?.client_reference;
     if (providerTxnId) await confirmAnyPayment(providerTxnId);
     res.status(200).send('OK');
   })
 );
 
+// Note sécurité : contrairement à Wave (voir plus haut), Orange Money et MTN
+// MoMo n'ont pas de vérification de signature dédiée ici car leurs schémas
+// exacts n'ont pas été confirmés dans la documentation - mieux vaut ne rien
+// vérifier que vérifier un mauvais schéma qui donnerait une fausse confiance.
+// Le vrai filet de sécurité reste `confirmPayment` : il rappelle
+// systématiquement l'API du prestataire (verifyPayment) avant de valider quoi
+// que ce soit, donc un webhook falsifié ne peut jamais, à lui seul, confirmer
+// un paiement - même pour ces deux-là.
 router.post(
   '/orange-money',
   asyncHandler(async (req, res) => {
