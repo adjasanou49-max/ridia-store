@@ -46,7 +46,8 @@ router.post(
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { q, categoryId, sellerId, minPrice, maxPrice, inStock, sortBy, page, pageSize, attributes } = req.query;
+    const { q, categoryId, sellerId, minPrice, maxPrice, inStock, sortBy, page, pageSize, attributes, isFeatured } =
+      req.query;
     const result = await productService.searchProducts({
       query: q as string,
       categoryId: categoryId as string,
@@ -54,6 +55,7 @@ router.get(
       minPrice: minPrice ? Number(minPrice) : undefined,
       maxPrice: maxPrice ? Number(maxPrice) : undefined,
       inStockOnly: inStock === 'true',
+      isFeatured: isFeatured !== undefined ? isFeatured === 'true' : undefined,
       sortBy: sortBy as any,
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 24,
