@@ -21,7 +21,25 @@ async function main() {
     update: {},
   });
 
-  // Categories
+  // Boutique officielle Ridia Store, rattachée au compte super-admin lui-même.
+  // Sans ça, le compte admin peut voir la page "Mes produits" (l'UI le laisse
+  // passer) mais l'ajout échoue côté serveur avec "Compte vendeur requis" -
+  // il faut un vrai profil Seller relié à ce user pour pouvoir créer des produits.
+  await prisma.seller.upsert({
+    where: { userId: admin.id },
+    create: {
+      userId: admin.id,
+      storeName: 'Ridia Store',
+      storeSlug: 'ridia-store-officiel',
+      storeDescription: 'Boutique officielle Ridia Store.',
+      status: SellerStatus.APPROVED,
+      commissionRate: 0,
+      approvedAt: new Date(),
+    },
+    update: { status: SellerStatus.APPROVED },
+  });
+
+
   const categories = [
     { name: 'Mode Femme', slug: 'mode-femme' },
     { name: 'Mode Homme', slug: 'mode-homme' },
@@ -29,14 +47,16 @@ async function main() {
     { name: 'Électronique', slug: 'electronique' },
     { name: 'Maison & Cuisine', slug: 'maison-cuisine' },
     { name: 'Beauté & Cosmétiques', slug: 'beaute-cosmetiques' },
-    { name: 'Tissus Wax & Boubous', slug: 'tissus-wax-boubous' },
+    { name: 'Tenues Traditionnelles', slug: 'tissus-wax-boubous' },
   ];
 
   for (const cat of categories) {
     await prisma.category.upsert({
       where: { slug: cat.slug },
       create: cat,
-      update: {},
+      // update: cat (pas juste {}) pour que renommer une catégorie ici se
+      // répercute bien sur la base existante au prochain `prisma:seed`.
+      update: cat,
     });
   }
 
@@ -89,14 +109,18 @@ async function main() {
     where: { userId: sellerUser.id },
     create: {
       userId: sellerUser.id,
-      storeName: 'Ridia Shop Demo',
-      storeSlug: 'ridia-shop-demo',
-      storeDescription: 'Boutique de démonstration - Mode africaine',
+      storeName: 'Ridia Shop',
+      storeSlug: 'ridia-shop',
+      storeDescription: 'Mode et essentiels du quotidien.',
       status: SellerStatus.APPROVED,
       commissionRate: 15,
       approvedAt: new Date(),
     },
-    update: {},
+    update: {
+      storeName: 'Ridia Shop',
+      storeDescription: 'Mode et essentiels du quotidien.',
+      status: SellerStatus.APPROVED,
+    },
   });
 
   // Liste noire par défaut de l'agent IA de modération - jamais montrer le fournisseur
