@@ -7,6 +7,7 @@ import { Plus } from 'lucide-react';
 import { useCart } from '@/lib/cart';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { track } from '@vercel/analytics';
 import { formatXof, getUnitPriceForQuantity } from '@/lib/utils';
 import { useCurrency } from '@/lib/currency';
 import { AddressForm } from '../addresses/page';
@@ -135,6 +136,12 @@ export default function CheckoutPage() {
         walletAmountToUse: walletAmountToUse > 0 ? walletAmountToUse : undefined,
       });
       await refresh();
+      track('order_placed', {
+        totalXof: subtotal - totalDiscount,
+        itemCount: items.length,
+        paymentProvider: provider,
+        usedCoupon: discountXof > 0,
+      });
 
       if (data.paymentUrl) {
         // Redirection vers la page de paiement (Wave/Orange Money/etc.)
