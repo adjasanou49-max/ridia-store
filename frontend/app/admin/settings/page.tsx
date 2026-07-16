@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
 import { X, Plus } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -15,6 +16,7 @@ interface SystemSettings {
   loyaltyPointsPerXof: number;
   loyaltyReferralBonusPoints: number;
   loyaltyTierThresholds: { tier: string; minPoints: number }[];
+  siteOgImageUrl: string | null;
 }
 
 export default function AdminSettingsPage() {
@@ -58,6 +60,25 @@ function SettingsForm({ initial }: { initial: SystemSettings }) {
   const [saving, setSaving] = useState(false);
   const [newCurrencyCode, setNewCurrencyCode] = useState('');
   const [newCurrencyRate, setNewCurrencyRate] = useState('');
+  const [uploadingOgImage, setUploadingOgImage] = useState(false);
+
+  async function handleOgImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingOgImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('images', file);
+      const { data } = await api.post<{ urls: string[] }>('/upload/images', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setForm((f) => ({ ...f, siteOgImageUrl: data.urls[0] }));
+    } catch (err: any) {
+      setMessage(`❌ ${err?.response?.data?.error || "Échec de l'envoi de l'image"}`);
+    } finally {
+      setUploadingOgImage(false);
+    }
+  }
 
   function addCurrency() {
     const code = newCurrencyCode.trim().toUpperCase();
@@ -292,6 +313,40 @@ function SettingsForm({ initial }: { initial: SystemSettings }) {
           Un moyen désactivé ici disparaît immédiatement de l&apos;écran de paiement des clients. Les clés API de
           chaque prestataire restent configurées dans les variables d&apos;environnement du serveur.
         </p>
+      </div>
+
+      <div className="pt-4 border-t border-gray-100">
+        <label className="block text-sm font-medium mb-1">Image de partage par défaut</label>
+        <p className="text-xs text-gray-400 mb-2">
+          Affichée quand quelqu&apos;un partage l&apos;accueil ou une page (hors fiche produit, qui a déjà sa
+          propre photo) sur WhatsApp/Facebook. Idéalement 1200×630px.
+        </p>
+        {form.siteOgImageUrl && (
+          <div className="mb-2 flex items-center gap-3">
+            <Image
+              src={form.siteOgImageUrl}
+              alt="Image de partage actuelle"
+              width={64}
+              height={64}
+              className="h-16 w-16 rounded-lg object-cover border border-gray-200"
+            />
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, siteOgImageUrl: null })}
+              className="text-xs text-red-600 hover:underline"
+            >
+              Retirer (repli sur l&apos;icône de l&apos;app)
+            </button>
+          </div>
+        )}
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleOgImageUpload}
+          disabled={uploadingOgImage}
+          className="text-sm"
+        />
+        {uploadingOgImage && <p className="text-xs text-gray-400 mt-1">Envoi en cours...</p>}
       </div>
 
       <button

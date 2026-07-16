@@ -15,6 +15,7 @@ import orderFulfillmentRoutes from './orderFulfillment.routes';
 import walletRoutes from './wallet.routes';
 import supportRoutes from './support.routes';
 import salesAgentRoutes from './sales-agent.routes';
+import settingsRoutes from './settings.routes';
 
 const router = Router();
 
@@ -36,5 +37,6 @@ router.use('/order-fulfillment', orderFulfillmentRoutes);
 router.use('/wallet', walletRoutes);
 router.use('/support', supportRoutes);
 router.use('/sales-agent', salesAgentRoutes);
+router.use('/settings', settingsRoutes);
 
 export default router;
