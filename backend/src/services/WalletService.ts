@@ -141,6 +141,10 @@ export class WalletService {
         provider,
         providerTxnId: result.providerTxnId,
         status: 'PENDING',
+        metadata: {
+          payToken: (result.raw as { pay_token?: string } | undefined)?.pay_token,
+          amountXof,
+        },
       },
     });
 
@@ -158,7 +162,7 @@ export class WalletService {
     if (topUp.status !== 'PENDING') return true; // déjà traité, webhook redélivré
 
     const adapter = getPaymentAdapter(topUp.provider);
-    const result = await adapter.verifyPayment(providerTxnId);
+    const result = await adapter.verifyPayment(providerTxnId, topUp.metadata);
 
     if (result.status === 'SUCCEEDED') {
       await prisma.$transaction([
