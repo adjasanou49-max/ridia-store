@@ -16,6 +16,17 @@ if (env.SENTRY_DSN) {
 
 const app = express();
 
+// Railway (comme tout hébergeur cloud) place l'app derrière un proxy inverse
+// qui ajoute l'en-tête X-Forwarded-For avec la vraie IP du client. Sans ce
+// réglage, express-rate-limit ne peut pas identifier correctement qui fait
+// quoi : soit tout le monde partage l'IP interne du proxy (rate limiting
+// inefficace, un abus n'importe où impacte tout le monde), soit ça plante.
+// `1` = on ne fait confiance qu'à UN seul saut de proxy (celui de Railway) -
+// jamais une valeur plus permissive, sinon un client pourrait injecter son
+// propre X-Forwarded-For pour usurper l'IP de quelqu'un d'autre et contourner
+// le rate limiting.
+app.set('trust proxy', 1);
+
 // ---------------- Security & Middleware ----------------
 app.use(helmet());
 app.use(
