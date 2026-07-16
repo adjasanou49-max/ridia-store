@@ -17,6 +17,9 @@ interface SystemSettings {
   loyaltyReferralBonusPoints: number;
   loyaltyTierThresholds: { tier: string; minPoints: number }[];
   siteOgImageUrl: string | null;
+  businessIfu: string | null;
+  tvaEnabled: boolean;
+  tvaRatePercent: number;
 }
 
 export default function AdminSettingsPage() {
@@ -347,6 +350,51 @@ function SettingsForm({ initial }: { initial: SystemSettings }) {
           className="text-sm"
         />
         {uploadingOgImage && <p className="text-xs text-gray-400 mt-1">Envoi en cours...</p>}
+      </div>
+
+      <div className="pt-4 border-t border-gray-100">
+        <label className="block text-sm font-medium mb-1">Numéro IFU</label>
+        <p className="text-xs text-gray-400 mb-2">
+          Obligatoire sur tout document professionnel (arrêté N°2005-766/MFB/SG/DGI). Affiché en en-tête de
+          chaque facture.
+        </p>
+        <input
+          type="text"
+          placeholder="ex: 00207954S"
+          value={form.businessIfu ?? ''}
+          onChange={(e) => setForm({ ...form, businessIfu: e.target.value || null })}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+        />
+
+        <label className="flex items-center gap-2 mt-4 text-sm">
+          <input
+            type="checkbox"
+            checked={form.tvaEnabled}
+            onChange={(e) => setForm({ ...form, tvaEnabled: e.target.checked })}
+          />
+          Afficher la TVA sur les factures
+        </label>
+        <p className="text-xs text-amber-600 mt-1 mb-2">
+          ⚠️ Le régime &quot;Contribution des Micro-Entreprises&quot; (celui indiqué sur ton certificat IFU)
+          n&apos;implique en général PAS de TVA à facturer - vérifie avec ton comptable/la DGI avant
+          d&apos;activer.
+        </p>
+        {form.tvaEnabled && (
+          <div>
+            <label className="block text-sm font-medium mb-1">Taux de TVA (%)</label>
+            <input
+              type="number"
+              step="0.5"
+              value={form.tvaRatePercent}
+              onChange={(e) => setForm({ ...form, tvaRatePercent: Number(e.target.value) })}
+              className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Calculée uniquement sur les produits (jamais sur les frais de livraison), par extraction du
+              montant déjà payé - n&apos;augmente pas le total facturé au client.
+            </p>
+          </div>
+        )}
       </div>
 
       <button
