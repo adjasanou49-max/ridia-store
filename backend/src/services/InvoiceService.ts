@@ -36,6 +36,12 @@ interface InvoiceOrder {
   payments: { provider: string; status: string; amountXof: Money }[];
 }
 
+interface TaxSettings {
+  businessIfu: string | null;
+  tvaEnabled: boolean;
+  tvaRatePercent: number;
+}
+
 const STATUS_LABELS_FR: Record<string, string> = {
   PENDING: 'En attente de paiement',
   CONFIRMED: 'Confirmée',
@@ -58,13 +64,16 @@ function formatXof(amount: Money): string {
  * figée pour les documents imprimés) mais complète : toutes les mentions
  * qu'un client ou un service comptable attend d'un vrai reçu.
  *
- * Note fiscale : le Burkina Faso applique une TVA à 18% pour les entreprises
- * assujetties, mais Ridia Store n'a pas encore de numéro IFU/régime fiscal
- * confirmé au moment où ce service est écrit - la ligne TVA est donc omise
- * plutôt que d'inventer un taux ou un numéro. À ajouter dès que le statut
- * fiscal de l'entreprise est arrêté (voir mention en pied de page).
+ * IFU affiché dans l'en-tête dès qu'il est configuré (arrêté N°2005-766/MFB/
+ * SG/DGI, obligatoire sur tout document professionnel).
+ *
+ * TVA : désactivée par défaut (voir /admin/settings). Si activée, elle est
+ * calculée par EXTRACTION sur le montant produits déjà payé (méthode "TTC"),
+ * jamais ajoutée en plus du total ni appliquée aux frais de livraison - le
+ * client a déjà payé exactement `order.totalXof`, la facture ne fait
+ * qu'expliciter la part de TVA contenue dans ce montant, elle ne le change pas.
  */
-export function generateInvoicePdf(order: InvoiceOrder): PassThrough {
+export function generateInvoicePdf(order: InvoiceOrder, tax: TaxSettings): PassThrough {
   const doc = new PDFDocument({ size: 'A4', margin: 50 });
   const stream: PassThrough = new Stream();
   doc.pipe(stream);
@@ -72,6 +81,9 @@ export function generateInvoicePdf(order: InvoiceOrder): PassThrough {
   // En-tête
   doc.fontSize(20).font('Helvetica-Bold').fillColor('#f97316').text('Ridia Store', 50, 50);
   doc.fontSize(9).font('Helvetica').fillColor('#666666').text('Marketplace en ligne', 50, 75);
+  if (tax.businessIfu) {
+    doc.fontSize(8).fillColor('#888888').text(`IFU : ${tax.businessIfu}`, 50, 90);
+  }
 
   doc
     .fontSize(16)
@@ -141,6 +153,15 @@ export function generateInvoicePdf(order: InvoiceOrder): PassThrough {
   if (Number(order.discountXof) > 0) {
     totalsLine('Remise' + (order.couponCode ? ` (${order.couponCode})` : ''), `-${formatXof(order.discountXof)}`);
   }
+  if (tax.tvaEnabled) {
+    // Base TVA = produits nets uniquement (sous-total - remise), jamais la
+    // livraison. Extraction (le client a déjà payé ce montant TTC) : on
+    // n'ajoute rien au total, on explicite juste la part de TVA incluse.
+    const productsNetXof = Number(order.subtotalXof) - Number(order.discountXof);
+    const htXof = productsNetXof / (1 + tax.tvaRatePercent / 100);
+    const tvaXof = productsNetXof - htXof;
+    totalsLine(`Dont TVA (${tax.tvaRatePercent}%, produits uniquement)`, formatXof(tvaXof));
+  }
   totalsLine('Livraison', Number(order.shippingFeeXof) > 0 ? formatXof(order.shippingFeeXof) : 'Gratuite');
   y += 5;
   doc.moveTo(320, y).lineTo(545, y).strokeColor('#111111').stroke();
@@ -167,7 +188,9 @@ export function generateInvoicePdf(order: InvoiceOrder): PassThrough {
     .fontSize(8)
     .fillColor('#999999')
     .text(
-      "Ridia Store - Document généré automatiquement, ne constitue pas une facture fiscale certifiée tant que le régime fiscal de l'entreprise n'est pas enregistré.",
+      tax.businessIfu
+        ? 'Ridia Store - Document généré automatiquement.'
+        : "Ridia Store - Document généré automatiquement, ne constitue pas une facture fiscale certifiée tant que le régime fiscal de l'entreprise n'est pas enregistré.",
       50,
       760,
       { width: 495, align: 'center' }
