@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
 import { Star, ShoppingCart, ShieldCheck, Heart, Play, Weight } from 'lucide-react';
 import { api } from '@/lib/api';
+import { track } from '@vercel/analytics';
 import { useAuth } from '@/lib/auth';
 import { useCart } from '@/lib/cart';
 import { useWishlist } from '@/lib/wishlist';
@@ -47,6 +48,12 @@ export default function ProductDetailClient() {
     setAdding(true);
     try {
       await addToCart(product.id, quantity, selectedVariant?.id);
+      track('add_to_cart', {
+        productId: product.id,
+        productName: product.name,
+        priceXof: selectedVariant?.priceXof ?? product.basePriceXof,
+        quantity,
+      });
       router.push('/cart');
     } finally {
       setAdding(false);
