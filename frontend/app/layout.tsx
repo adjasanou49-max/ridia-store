@@ -6,6 +6,8 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { InstallPrompt } from '@/components/InstallPrompt';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { CartProvider } from '@/lib/cart';
 import { WishlistProvider } from '@/lib/wishlist';
 import { CurrencyProvider } from '@/lib/currency';
@@ -87,6 +89,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <Footer />
                     <MobileBottomNav />
                     <InstallPrompt />
+                    <Analytics />
+                    <SpeedInsights />
                   </LanguageProvider>
                 </CurrencyProvider>
               </WishlistProvider>
