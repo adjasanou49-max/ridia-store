@@ -5,9 +5,15 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://ridia-store.com';
 
 interface ProductForMetadata {
+  slug: string;
   name: string;
   description: string;
+  sku: string;
+  brand?: string | null;
   basePriceXof: number;
+  stockQuantity: number;
+  rating: number;
+  reviewCount: number;
   images: { url: string; isPrimary: boolean }[];
 }
 
@@ -65,6 +71,56 @@ export async function generateMetadata({
   };
 }
 
-export default function ProductDetailPage() {
-  return <ProductDetailClient />;
+// Données structurées schema.org/Product - permet à Google d'afficher
+// prix/disponibilité/note directement dans les résultats de recherche
+// (rich snippets), au lieu d'un lien texte nu.
+function buildProductJsonLd(product: ProductForMetadata) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    description: product.description.replace(/\s+/g, ' ').trim().slice(0, 500),
+    sku: product.sku,
+    image: product.images.map((i) => i.url),
+    brand: { '@type': 'Brand', name: product.brand || 'Ridia Store' },
+    offers: {
+      '@type': 'Offer',
+      url: `${SITE_URL}/products/${product.slug}`,
+      priceCurrency: 'XOF',
+      price: product.basePriceXof,
+      availability: product.stockQuantity > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      itemCondition: 'https://schema.org/NewCondition',
+    },
+    // Google ignore aggregateRating sans avis réels - on ne l'ajoute que s'il
+    // y en a au moins un, pour ne jamais afficher une fausse note de 0.
+    ...(product.reviewCount > 0 && {
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: product.rating,
+        reviewCount: product.reviewCount,
+      },
+    }),
+  };
+}
+
+export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const product = await fetchProductForMetadata(slug);
+
+  return (
+    <>
+      {product && (
+        <script
+          type="application/ld+json"
+          // JSON.stringify échappe déjà les guillemets/caractères spéciaux JSON,
+          // mais pas une séquence "</script>" littérale qui casserait la balise -
+          // la description vient du vendeur, donc pas mise à l'abri par défaut.
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(buildProductJsonLd(product)).replace(/</g, '\\u003c'),
+          }}
+        />
+      )}
+      <ProductDetailClient />
+    </>
+  );
 }
