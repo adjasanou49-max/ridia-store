@@ -12,8 +12,8 @@ jest.mock('../config/prisma', () => ({
 
 jest.mock('bcryptjs', () => ({ hash: jest.fn(), compare: jest.fn() }));
 jest.mock('jsonwebtoken', () => ({ sign: jest.fn(() => 'signed-token'), verify: jest.fn() }));
-jest.mock('../integrations/notifications/SendGridAdapter', () => ({
-  sendGridAdapter: {
+jest.mock('../integrations/notifications/BrevoAdapter', () => ({
+  emailAdapter: {
     sendWelcomeEmail: jest.fn().mockResolvedValue(undefined),
     sendPasswordReset: jest.fn().mockResolvedValue(undefined),
     sendEmail: jest.fn().mockResolvedValue(undefined),
