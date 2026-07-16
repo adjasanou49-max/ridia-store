@@ -142,7 +142,7 @@ export class WalletService {
         providerTxnId: result.providerTxnId,
         status: 'PENDING',
         metadata: {
-          payToken: (result.raw as { pay_token?: string } | undefined)?.pay_token,
+          payToken: (result.raw as { pay_token?: string } | undefined)?.pay_token ?? null,
           amountXof,
         },
       },
