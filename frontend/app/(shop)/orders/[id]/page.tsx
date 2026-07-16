@@ -124,6 +124,19 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function handleDownloadInvoice() {
+    if (!order) return;
+    // Téléchargement en blob (pas un simple <a href>) car la route exige le
+    // token JWT en en-tête - un lien classique n'enverrait pas l'auth.
+    const res = await api.get(`/orders/${order.id}/invoice`, { responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `facture-${order.orderNumber}.pdf`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  }
+
   if (isLoading) return <div className="max-w-3xl mx-auto px-4 py-16 text-gray-400">Chargement...</div>;
   if (!order) return <div className="max-w-3xl mx-auto px-4 py-16 text-gray-400">Commande introuvable.</div>;
 
@@ -135,6 +148,9 @@ export default function OrderDetailPage() {
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-2xl font-bold">Commande {order.orderNumber}</h1>
         <div className="flex items-center gap-3">
+          <button onClick={handleDownloadInvoice} className="text-sm text-gray-500 hover:text-brand-600 hover:underline">
+            Télécharger la facture
+          </button>
           {canDispute && (
             <button
               onClick={() => setShowDisputeForm((v) => !v)}

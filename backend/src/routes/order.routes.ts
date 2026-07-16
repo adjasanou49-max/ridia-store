@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { orderService } from '../services/OrderService';
 import { couponService } from '../services/CouponService';
 import { disputeService } from '../services/DisputeService';
+import { generateInvoicePdf } from '../services/InvoiceService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authenticate } from '../middleware/auth';
 import { addToCartSchema, createOrderSchema, createDisputeSchema } from '../utils/validators';
@@ -84,6 +85,18 @@ router.get(
   asyncHandler(async (req, res) => {
     const order = await orderService.getOrderById(req.params.id, req.auth!.userId);
     res.json(order);
+  })
+);
+
+// Facture PDF - scopé au même userId que le détail de commande ci-dessus,
+// impossible de télécharger la facture de quelqu'un d'autre.
+router.get(
+  '/:id/invoice',
+  asyncHandler(async (req, res) => {
+    const order = await orderService.getOrderById(req.params.id, req.auth!.userId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="facture-${order.orderNumber}.pdf"`);
+    generateInvoicePdf(order).pipe(res);
   })
 );
 
