@@ -428,6 +428,9 @@ router.get(
             'loyaltyReferralBonusPoints',
             'loyaltyTierThresholds',
             'siteOgImageUrl',
+            'businessIfu',
+            'tvaEnabled',
+            'tvaRatePercent',
           ],
         },
       },
@@ -466,6 +469,14 @@ router.get(
       // qui n'a pas sa propre image (les fiches produit ont déjà la leur).
       // null -> le frontend retombe sur l'icône de l'app.
       siteOgImageUrl: asMap.siteOgImageUrl ?? null,
+      // Facturation - numéro IFU (obligatoire sur tout document professionnel
+      // au Burkina Faso, arrêté N°2005-766/MFB/SG/DGI). TVA désactivée par
+      // défaut : le régime "Contribution des Micro-Entreprises" ne l'impose
+      // en général pas (régime simplifié au chiffre d'affaires) - à confirmer
+      // avec un comptable avant d'activer.
+      businessIfu: asMap.businessIfu ?? null,
+      tvaEnabled: asMap.tvaEnabled ?? false,
+      tvaRatePercent: asMap.tvaRatePercent ?? 18,
     });
   })
 );
@@ -501,6 +512,9 @@ router.patch(
       loyaltyReferralBonusPoints,
       loyaltyTierThresholds,
       siteOgImageUrl,
+      businessIfu,
+      tvaEnabled,
+      tvaRatePercent,
     } = req.body;
 
     if (Array.isArray(loyaltyTierThresholds)) {
@@ -558,6 +572,33 @@ router.patch(
             }),
           ]
         : []),
+      ...(businessIfu !== undefined
+        ? [
+            prisma.systemSetting.upsert({
+              where: { key: 'businessIfu' },
+              create: { key: 'businessIfu', value: businessIfu },
+              update: { value: businessIfu },
+            }),
+          ]
+        : []),
+      ...(tvaEnabled !== undefined
+        ? [
+            prisma.systemSetting.upsert({
+              where: { key: 'tvaEnabled' },
+              create: { key: 'tvaEnabled', value: tvaEnabled },
+              update: { value: tvaEnabled },
+            }),
+          ]
+        : []),
+      ...(tvaRatePercent !== undefined
+        ? [
+            prisma.systemSetting.upsert({
+              where: { key: 'tvaRatePercent' },
+              create: { key: 'tvaRatePercent', value: tvaRatePercent },
+              update: { value: tvaRatePercent },
+            }),
+          ]
+        : []),
     ]);
 
     res.json({
@@ -570,6 +611,9 @@ router.patch(
       loyaltyReferralBonusPoints,
       loyaltyTierThresholds,
       siteOgImageUrl,
+      businessIfu,
+      tvaEnabled,
+      tvaRatePercent,
     });
   })
 );
