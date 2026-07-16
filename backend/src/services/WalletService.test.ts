@@ -159,6 +159,7 @@ describe('WalletService.initiateTopUp / confirmTopUp', () => {
         provider: 'WAVE',
         providerTxnId: 'txn-topup-1',
         status: 'PENDING',
+        metadata: { payToken: null, amountXof: 5000 },
       },
     });
   });

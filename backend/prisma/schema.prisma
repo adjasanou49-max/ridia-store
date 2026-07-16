@@ -695,6 +695,10 @@ model Payment {
   providerTxnId String?         @unique
   status        PaymentStatus   @default(PENDING)
   amountXof     Decimal         @db.Decimal(14, 2)
+  // Données brutes renvoyées par le prestataire à l'initiation (ex: pay_token
+  // Orange Money) - certains prestataires exigent de renvoyer ce jeton pour
+  // pouvoir vérifier le statut d'une transaction plus tard.
+  metadata      Json?
 
   paidAt    DateTime?
   createdAt DateTime  @default(now())
@@ -976,6 +980,7 @@ model WalletTopUp {
   provider      PaymentProvider
   providerTxnId String    @unique
   status        String    @default("PENDING") // PENDING | SUCCEEDED | FAILED
+  metadata      Json?
   createdAt     DateTime  @default(now())
   confirmedAt   DateTime?
 
