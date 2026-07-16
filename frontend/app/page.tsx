@@ -35,8 +35,29 @@ export default function HomePage() {
       (await api.get<PaginatedResult<Product>>('/products', { params: { pageSize: 8, sortBy: 'price_asc' } })).data,
   });
 
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://ridia-store.com';
+
   return (
     <div>
+      {/* Données structurées statiques (pas de fetch nécessaire) - aide Google à
+          comprendre Ridia Store comme une entité (logo dans les résultats de
+          recherche) et active potentiellement la boîte de recherche sitelinks. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            name: 'Ridia Store',
+            url: SITE_URL,
+            potentialAction: {
+              '@type': 'SearchAction',
+              target: `${SITE_URL}/products?q={search_term_string}`,
+              'query-input': 'required name=search_term_string',
+            },
+          }),
+        }}
+      />
       {/* Catégories */}
       <section className="max-w-7xl mx-auto px-4 pt-4 pb-6">
         {categories && <CategoryIconRow categories={categories} />}
