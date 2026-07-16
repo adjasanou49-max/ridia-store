@@ -1,15 +1,22 @@
 import PDFDocument from 'pdfkit';
 import type { PassThrough } from 'stream';
 import { PassThrough as Stream } from 'stream';
+import type { Prisma } from '@prisma/client';
+
+// Les montants viennent directement de Prisma (type Decimal), jamais de
+// simples number - Number(decimalInstance) fonctionne bien au runtime
+// (comme partout ailleurs dans ce code), mais le type doit l'accepter
+// explicitement pour que TypeScript ne râle pas.
+type Money = Prisma.Decimal | number | string;
 
 interface InvoiceOrder {
   orderNumber: string;
   createdAt: Date;
   status: string;
-  subtotalXof: number | string;
-  shippingFeeXof: number | string;
-  discountXof: number | string;
-  totalXof: number | string;
+  subtotalXof: Money;
+  shippingFeeXof: Money;
+  discountXof: Money;
+  totalXof: Money;
   couponCode: string | null;
   shippingAddress: {
     fullName: string;
@@ -23,10 +30,10 @@ interface InvoiceOrder {
   items: {
     productName: string;
     quantity: number;
-    unitPriceXof: number | string;
-    totalXof: number | string;
+    unitPriceXof: Money;
+    totalXof: Money;
   }[];
-  payments: { provider: string; status: string; amountXof: number | string }[];
+  payments: { provider: string; status: string; amountXof: Money }[];
 }
 
 const STATUS_LABELS_FR: Record<string, string> = {
@@ -40,7 +47,7 @@ const STATUS_LABELS_FR: Record<string, string> = {
   DISPUTED: 'Litige en cours',
 };
 
-function formatXof(amount: number | string): string {
+function formatXof(amount: Money): string {
   const n = Number(amount);
   return `${n.toLocaleString('fr-FR')} FCFA`;
 }
