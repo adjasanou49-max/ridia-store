@@ -324,7 +324,7 @@ export class OrderService {
         // pay_token (Orange Money) et autres données d'initiation nécessaires
         // à une vérification ultérieure - voir OrangeMoneyAdapter.verifyPayment.
         metadata: {
-          payToken: (paymentResult.raw as { pay_token?: string } | undefined)?.pay_token,
+          payToken: (paymentResult.raw as { pay_token?: string } | undefined)?.pay_token ?? null,
           amountXof: amountToChargeProvider,
         },
       },
