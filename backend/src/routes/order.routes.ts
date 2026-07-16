@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { prisma } from '../config/prisma';
 import { orderService } from '../services/OrderService';
 import { couponService } from '../services/CouponService';
 import { disputeService } from '../services/DisputeService';
@@ -94,9 +95,18 @@ router.get(
   '/:id/invoice',
   asyncHandler(async (req, res) => {
     const order = await orderService.getOrderById(req.params.id, req.auth!.userId);
+    const settingsRows = await prisma.systemSetting.findMany({
+      where: { key: { in: ['businessIfu', 'tvaEnabled', 'tvaRatePercent'] } },
+    });
+    const settingsMap = Object.fromEntries(settingsRows.map((r) => [r.key, r.value]));
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="facture-${order.orderNumber}.pdf"`);
-    generateInvoicePdf(order).pipe(res);
+    generateInvoicePdf(order, {
+      businessIfu: (settingsMap.businessIfu as string) ?? null,
+      tvaEnabled: (settingsMap.tvaEnabled as boolean) ?? false,
+      tvaRatePercent: (settingsMap.tvaRatePercent as number) ?? 18,
+    }).pipe(res);
   })
 );
 
