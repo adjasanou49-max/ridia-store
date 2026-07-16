@@ -11,12 +11,35 @@ import { WishlistProvider } from '@/lib/wishlist';
 import { CurrencyProvider } from '@/lib/currency';
 import { LanguageProvider } from '@/lib/language';
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://ridia-store.com';
+const DEFAULT_TITLE = 'Ridia Store - Marketplace en ligne';
+const DEFAULT_DESCRIPTION =
+  'Marketplace e-commerce : mode, tissus wax, boubous, électronique et essentiels du quotidien, livrés partout dans le monde.';
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://ridia-store.com'),
-  title: 'Ridia Store - Marketplace en ligne',
-  description:
-    'Marketplace e-commerce : mode, tissus wax, boubous, électronique et essentiels du quotidien, livrés partout dans le monde.',
+  metadataBase: new URL(SITE_URL),
+  title: DEFAULT_TITLE,
+  description: DEFAULT_DESCRIPTION,
   manifest: '/manifest.json',
+  // Valeurs par défaut pour TOUTE page qui ne définit pas les siennes (les
+  // fiches produit les remplacent avec leur propre image/titre via
+  // generateMetadata) - sans ça, partager l'accueil ou une page catégorie
+  // sur WhatsApp affichait une carte vide, sans image ni description.
+  openGraph: {
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+    url: SITE_URL,
+    siteName: 'Ridia Store',
+    images: [{ url: '/icon-512.png', width: 512, height: 512, alt: 'Ridia Store' }],
+    type: 'website',
+    locale: 'fr_FR',
+  },
+  twitter: {
+    card: 'summary',
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+    images: ['/icon-512.png'],
+  },
 };
 
 export const viewport: Viewport = {
