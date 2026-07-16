@@ -73,33 +73,63 @@ export class OrangeMoneyAdapter implements PaymentAdapter {
   }
 
   /**
-   * ⚠️ CORRECTION FAILLE CRITIQUE : cette méthode renvoyait auparavant
-   * toujours `SUCCEEDED` en mode réel (hors mock), sans jamais interroger
-   * Orange - l'intégration réelle n'a jamais été terminée. N'importe qui
-   * pouvait donc faire confirmer une commande gratuitement en initiant un
-   * paiement puis en laissant le webhook (ou une requête forgée) déclencher
-   * la confirmation, sans jamais payer réellement.
+   * Vérification réelle via l'API "Transaction Status" d'Orange Money.
    *
-   * En attendant une vraie intégration testée avec l'API Orange (endpoint de
-   * statut de transaction), on renvoie PENDING en mode réel : la commande
-   * reste non confirmée plutôt que d'être confirmée à tort. C'est moins
-   * pratique (confirmation manuelle nécessaire pour l'instant) mais
-   * infiniment plus sûr qu'un contournement de paiement.
+   * ⚠️ Endpoint déduit par recoupement de plusieurs SDK tiers indépendants
+   * (om4j en Java, Foris-master/orange-money-sdk en PHP, Ibracilinks/OrangeMoney
+   * en PHP/Laravel) qui décrivent tous la même requête et la même réponse -
+   * je n'ai pas pu accéder à la référence officielle d'Orange (portail
+   * développeur fermé derrière un compte). À tester en sandbox Orange avant
+   * la mise en production réelle - si l'appel échoue ou renvoie un format
+   * inattendu, on retombe sur PENDING (jamais de fausse confirmation), donc
+   * aucun risque de sécurité même si l'implémentation doit être ajustée.
    */
-  async verifyPayment(providerTxnId: string): Promise<VerifyPaymentResult> {
+  async verifyPayment(providerTxnId: string, metadata?: unknown): Promise<VerifyPaymentResult> {
     if (this.isMock) {
       return { success: true, status: 'SUCCEEDED', providerTxnId };
     }
-    logger.warn(
-      "Vérification Orange Money non implémentée en mode réel - paiement laissé en attente, ne jamais confirmer sans vraie vérification",
-      { providerTxnId }
-    );
-    return { success: false, status: 'PENDING', providerTxnId };
+
+    const meta = metadata as { payToken?: string; amountXof?: number } | undefined;
+    const payToken = meta?.payToken;
+    if (!payToken) {
+      logger.warn('Orange Money verifyPayment appelé sans payToken en metadata - impossible de vérifier', {
+        providerTxnId,
+      });
+      return { success: false, status: 'PENDING', providerTxnId };
+    }
+
+    try {
+      const token = await this.getAccessToken();
+      // order_id ici = providerTxnId (notre transactionId "RID-OM-...", voir
+      // initiatePayment) - c'est bien ce qu'on a envoyé comme order_id à
+      // Orange à l'initiation, donc ce qu'ils attendent en retour.
+      const response = await axios.post(
+        `${ORANGE_BASE_URL}/transactionstatus`,
+        { order_id: providerTxnId, amount: Math.round(meta?.amountXof ?? 0), pay_token: payToken },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const status = response.data?.status;
+      if (status === 'SUCCESS') {
+        return { success: true, status: 'SUCCEEDED', providerTxnId, raw: response.data };
+      }
+      if (status === 'FAILED' || status === 'EXPIRED') {
+        return { success: true, status: 'FAILED', providerTxnId, raw: response.data };
+      }
+      // INITIATED / PENDING / valeur inconnue -> toujours en attente, jamais confirmé.
+      return { success: false, status: 'PENDING', providerTxnId, raw: response.data };
+    } catch (err: any) {
+      logger.error('Orange Money verifyPayment error - commande laissée en attente par sécurité', {
+        providerTxnId,
+        error: err.message,
+      });
+      return { success: false, status: 'PENDING', providerTxnId };
+    }
   }
 
   async handleWebhook(payload: any): Promise<VerifyPaymentResult> {
     const providerTxnId = payload.order_id;
-    return this.verifyPayment(providerTxnId);
+    return this.verifyPayment(providerTxnId, { payToken: payload.pay_token, amountXof: payload.amount });
   }
 
   /**
