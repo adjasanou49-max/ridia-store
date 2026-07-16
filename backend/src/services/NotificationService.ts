@@ -2,7 +2,7 @@ import { NotificationChannel, NotificationStatus } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { redisConnection } from '../config/redis';
 import { whatsAppAdapter } from '../integrations/notifications/WhatsAppAdapter';
-import { sendGridAdapter } from '../integrations/notifications/SendGridAdapter';
+import { emailAdapter } from '../integrations/notifications/BrevoAdapter';
 import { logger } from '../config/logger';
 
 export class NotificationService {
@@ -18,7 +18,7 @@ export class NotificationService {
       });
     }
 
-    await sendGridAdapter.sendOrderConfirmation(user.email, orderNumber, totalXof);
+    await emailAdapter.sendOrderConfirmation(user.email, orderNumber, totalXof);
   }
 
   async notifyOrderShipped(userId: string, orderNumber: string, trackingNumber: string) {
@@ -35,7 +35,7 @@ export class NotificationService {
     // Envoyé systématiquement en plus du WhatsApp - un client sans numéro
     // enregistré (ou qui ne consulte pas WhatsApp) ne doit jamais rater
     // cette notification faute d'avoir un seul canal de secours.
-    await sendGridAdapter.sendShippingNotification(user.email, orderNumber, trackingNumber);
+    await emailAdapter.sendShippingNotification(user.email, orderNumber, trackingNumber);
   }
 
   /**
@@ -54,7 +54,7 @@ export class NotificationService {
       });
     }
 
-    await sendGridAdapter.sendReviewRequest(user.email, orderNumber);
+    await emailAdapter.sendReviewRequest(user.email, orderNumber);
   }
 
   async notifyLowStock(sellerId: string, productName: string, remainingStock: number) {
