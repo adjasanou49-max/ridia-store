@@ -427,6 +427,7 @@ router.get(
             'loyaltyPointsPerXof',
             'loyaltyReferralBonusPoints',
             'loyaltyTierThresholds',
+            'siteOgImageUrl',
           ],
         },
       },
@@ -461,6 +462,10 @@ router.get(
         { tier: 'argent', minPoints: 500 },
         { tier: 'bronze', minPoints: 0 },
       ],
+      // Image de partage par défaut (WhatsApp/Facebook/Twitter) pour toute page
+      // qui n'a pas sa propre image (les fiches produit ont déjà la leur).
+      // null -> le frontend retombe sur l'icône de l'app.
+      siteOgImageUrl: asMap.siteOgImageUrl ?? null,
     });
   })
 );
@@ -495,6 +500,7 @@ router.patch(
       loyaltyPointsPerXof,
       loyaltyReferralBonusPoints,
       loyaltyTierThresholds,
+      siteOgImageUrl,
     } = req.body;
 
     if (Array.isArray(loyaltyTierThresholds)) {
@@ -543,6 +549,15 @@ router.patch(
         create: { key: 'loyaltyTierThresholds', value: loyaltyTierThresholds },
         update: { value: loyaltyTierThresholds },
       }),
+      ...(siteOgImageUrl !== undefined
+        ? [
+            prisma.systemSetting.upsert({
+              where: { key: 'siteOgImageUrl' },
+              create: { key: 'siteOgImageUrl', value: siteOgImageUrl },
+              update: { value: siteOgImageUrl },
+            }),
+          ]
+        : []),
     ]);
 
     res.json({
@@ -554,6 +569,7 @@ router.patch(
       loyaltyPointsPerXof,
       loyaltyReferralBonusPoints,
       loyaltyTierThresholds,
+      siteOgImageUrl,
     });
   })
 );
