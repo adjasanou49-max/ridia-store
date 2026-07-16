@@ -321,6 +321,12 @@ export class OrderService {
         amountXof: amountToChargeProvider,
         providerTxnId: paymentResult.providerTxnId,
         status: paymentResult.success ? 'PROCESSING' : 'FAILED',
+        // pay_token (Orange Money) et autres données d'initiation nécessaires
+        // à une vérification ultérieure - voir OrangeMoneyAdapter.verifyPayment.
+        metadata: {
+          payToken: (paymentResult.raw as { pay_token?: string } | undefined)?.pay_token,
+          amountXof: amountToChargeProvider,
+        },
       },
     });
 
@@ -347,7 +353,7 @@ export class OrderService {
     }
 
     const adapter = getPaymentAdapter(payment.provider);
-    const result = await adapter.verifyPayment(providerTxnId);
+    const result = await adapter.verifyPayment(providerTxnId, payment.metadata);
 
     if (result.status === 'SUCCEEDED') {
       await prisma.$transaction([
