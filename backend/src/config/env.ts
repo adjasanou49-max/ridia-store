@@ -64,6 +64,15 @@ export const env = {
     fromEmail: required('SENDGRID_FROM_EMAIL', 'no-reply@ridia-store.com'),
     mode: required('SENDGRID_MODE', 'mock'),
   },
+  // Fournisseur d'emails actif - compte SendGrid rejeté par leur vetting
+  // (fréquent pour des comptes hors Europe/Amérique du Nord), remplacé par
+  // Brevo (entreprise française, plus accessible). SendGrid reste au-dessus
+  // au cas où, mais BrevoAdapter est celui réellement branché dans le code.
+  BREVO: {
+    apiKey: required('BREVO_API_KEY'),
+    fromEmail: required('BREVO_FROM_EMAIL', 'contact@ridia.store'),
+    mode: required('BREVO_MODE', 'mock'),
+  },
   STORAGE: {
     provider: required('STORAGE_PROVIDER', 's3'), // "s3", "bunny" ou "cloudinary"
     s3AccessKey: required('AWS_S3_ACCESS_KEY'),

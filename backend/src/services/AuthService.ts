@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../config/prisma';
 import { env } from '../config/env';
 import { AppError } from '../middleware/errorHandler';
-import { sendGridAdapter } from '../integrations/notifications/SendGridAdapter';
+import { emailAdapter } from '../integrations/notifications/BrevoAdapter';
 import { whatsAppAdapter } from '../integrations/notifications/WhatsAppAdapter';
 import { UserRole } from '@prisma/client';
 
@@ -53,7 +53,7 @@ export class AuthService {
     });
 
     const tokens = await this.generateTokenPair(user.id, user.role);
-    sendGridAdapter.sendWelcomeEmail(user.email, user.firstName).catch(() => {});
+    emailAdapter.sendWelcomeEmail(user.email, user.firstName).catch(() => {});
     return { user: this.sanitizeUser(user), ...tokens };
   }
 
@@ -191,7 +191,7 @@ export class AuthService {
     });
 
     const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    await sendGridAdapter.sendPasswordReset(user.email, resetUrl);
+    await emailAdapter.sendPasswordReset(user.email, resetUrl);
   }
 
   async resetPassword(token: string, newPassword: string) {
@@ -221,7 +221,7 @@ export class AuthService {
       expiresIn: '24h',
     });
     const verifyUrl = `${env.FRONTEND_URL}/verify-email?token=${token}`;
-    await sendGridAdapter.sendEmail(
+    await emailAdapter.sendEmail(
       user.email,
       'Vérifie ton adresse email - Ridia Store',
       `<h2>Confirme ton email</h2><p><a href="${verifyUrl}">Clique ici pour vérifier ton adresse email</a></p><p>Ce lien expire dans 24h.</p>`

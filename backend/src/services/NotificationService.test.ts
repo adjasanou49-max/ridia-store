@@ -13,8 +13,8 @@ jest.mock('../config/redis', () => ({
 jest.mock('../integrations/notifications/WhatsAppAdapter', () => ({
   whatsAppAdapter: { sendTextMessage: jest.fn().mockResolvedValue({ success: true }) },
 }));
-jest.mock('../integrations/notifications/SendGridAdapter', () => ({
-  sendGridAdapter: {
+jest.mock('../integrations/notifications/BrevoAdapter', () => ({
+  emailAdapter: {
     sendOrderConfirmation: jest.fn().mockResolvedValue(undefined),
     sendShippingNotification: jest.fn().mockResolvedValue(undefined),
     sendReviewRequest: jest.fn().mockResolvedValue(undefined),
@@ -22,12 +22,12 @@ jest.mock('../integrations/notifications/SendGridAdapter', () => ({
 }));
 
 import { prisma } from '../config/prisma';
-import { sendGridAdapter } from '../integrations/notifications/SendGridAdapter';
+import { emailAdapter } from '../integrations/notifications/BrevoAdapter';
 import { whatsAppAdapter } from '../integrations/notifications/WhatsAppAdapter';
 import { NotificationService } from './NotificationService';
 
 const mockedPrisma = prisma as unknown as { user: { findUnique: jest.Mock } };
-const mockedSendGrid = sendGridAdapter as unknown as {
+const mockedSendGrid = emailAdapter as unknown as {
   sendShippingNotification: jest.Mock;
   sendOrderConfirmation: jest.Mock;
   sendReviewRequest: jest.Mock;
