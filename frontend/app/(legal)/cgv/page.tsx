@@ -3,6 +3,18 @@ export default function CGVPage() {
     <div className="max-w-3xl mx-auto px-4 py-12 prose prose-sm">
       <h1 className="text-2xl font-bold mb-6">Conditions Générales de Vente</h1>
 
+      <h2 className="font-semibold mt-6 mb-2">0. Identification de l&apos;entreprise</h2>
+      <p className="text-gray-600">
+        Ridia Store est exploité par ARDJATA SANOU, entreprise individuelle immatriculée au
+        Burkina Faso.
+      </p>
+      <ul className="text-gray-600">
+        <li>Régime fiscal : Contribution des Micro-Entreprises (CME)</li>
+        <li>Identifiant Financier Unique (IFU) : 00207954S</li>
+        <li>RCCM : BFBD2002A756</li>
+        <li>Adresse : 109 Rue 15.46, Secteur 15, Bobo-Dioulasso, Burkina Faso</li>
+      </ul>
+
       <h2 className="font-semibold mt-6 mb-2">1. Objet</h2>
       <p className="text-gray-600">
         Les présentes conditions régissent les ventes réalisées sur Ridia Store entre le client
