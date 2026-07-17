@@ -422,8 +422,9 @@ export class OrderService {
    * achetés. Correction bug : `expiresAt` était posé sur chaque réservation
    * mais rien ne le vérifiait jamais - le stock d'un panier abandonné restait
    * réservé indéfiniment, réduisant artificiellement le stock disponible au
-   * fil du temps. Appelée périodiquement par une tâche planifiée (voir
-   * cartCleanupQueue).
+   * fil du temps. Appelée toutes les 5 minutes par un setInterval dans
+   * queues/worker.ts (pas une vraie queue BullMQ - une simple tâche planifiée
+   * en boucle, au même titre que applyDuePriceIncreases juste au-dessus).
    */
   async releaseExpiredReservations(): Promise<number> {
     const expired = await prisma.cartItem.findMany({
