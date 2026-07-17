@@ -16,6 +16,10 @@ export function ProductCard({ product }: { product: Product }) {
   const { isWishlisted, toggle } = useWishlist();
   const { currency, formatPrice } = useCurrency();
   const wishlisted = isWishlisted(product.id);
+  const discountPercent =
+    product.compareAtPriceXof && product.compareAtPriceXof > product.basePriceXof
+      ? Math.round((1 - product.basePriceXof / product.compareAtPriceXof) * 100)
+      : null;
 
   function handleWishlistClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -43,10 +47,17 @@ export function ProductCard({ product }: { product: Product }) {
             Pas d&apos;image
           </div>
         )}
-        {product.stockQuantity <= 0 && (
+        {product.stockQuantity <= 0 ? (
           <span className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
             Rupture
           </span>
+        ) : (
+          discountPercent &&
+          discountPercent > 0 && (
+            <span className="absolute top-2 left-2 bg-red-500 text-white text-[11px] font-bold px-1.5 py-0.5 rounded">
+              -{discountPercent}%
+            </span>
+          )
         )}
         {user && (
           <button
@@ -61,7 +72,7 @@ export function ProductCard({ product }: { product: Product }) {
           </button>
         )}
       </div>
-      <div className="p-3">
+      <div className="p-2.5">
         <p className="text-sm font-medium text-gray-800 line-clamp-2 min-h-[2.5rem]">
           {product.name}
         </p>
@@ -82,7 +93,14 @@ export function ProductCard({ product }: { product: Product }) {
               </p>
             </>
           ) : (
-            <p className="font-bold text-brand-600">{formatXof(product.basePriceXof)}</p>
+            <p className="font-bold text-brand-600">
+              {formatXof(product.basePriceXof)}
+              {discountPercent && discountPercent > 0 && (
+                <span className="ml-1.5 text-xs font-normal text-gray-400 line-through">
+                  {formatXof(product.compareAtPriceXof!)}
+                </span>
+              )}
+            </p>
           )}
           {currency !== 'XOF' && (
             <p className="text-xs text-gray-400">{formatPrice(product.basePriceXof)}</p>
