@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { formatXof } from '@/lib/utils';
@@ -58,6 +59,22 @@ export default function HomePage() {
           }),
         }}
       />
+      {/* Bannière promo - image générée via Canva, hébergée sur Cloudinary,
+          recadrée à la volée en format large (c_fill) car la source est en
+          portrait (format affiche), pas en bannière horizontale. */}
+      <section className="max-w-7xl mx-auto px-4 pt-4">
+        <Link href="/products" className="block rounded-xl overflow-hidden">
+          <Image
+            src="https://res.cloudinary.com/noty3qr9/image/upload/c_fill,g_auto,w_1200,h_360/v1784323280/ridia-store/ridia-store/banniere-promo-accueil.png"
+            alt="Offres du jour - jusqu'à 45% de réduction"
+            width={1200}
+            height={360}
+            className="w-full h-auto"
+            priority
+          />
+        </Link>
+      </section>
+
       {/* Catégories */}
       <section className="max-w-7xl mx-auto px-4 pt-4 pb-6">
         {categories && <CategoryIconRow categories={categories} />}
