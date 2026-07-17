@@ -132,7 +132,7 @@ function ProductsGrid({ categoryId, initialQuery }: { categoryId?: string; initi
       )}
 
       {isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5 lg:gap-6">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="aspect-square bg-gray-100 rounded-xl animate-pulse" />
           ))}
@@ -158,7 +158,7 @@ function ProductsGrid({ categoryId, initialQuery }: { categoryId?: string; initi
           {total > 0 && (
             <p className="text-sm text-gray-400 mb-3">{total} produits trouvés</p>
           )}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5 lg:gap-6">
             {items.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
@@ -168,7 +168,7 @@ function ProductsGrid({ categoryId, initialQuery }: { categoryId?: string; initi
           <div ref={sentinelRef} className="h-1" />
 
           {isFetchingNextPage && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5 lg:gap-6 mt-6">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="aspect-square bg-gray-100 rounded-xl animate-pulse" />
               ))}
