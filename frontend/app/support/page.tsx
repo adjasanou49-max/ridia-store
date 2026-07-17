@@ -148,7 +148,7 @@ export default function DiscussionPage() {
   const [tab, setTab] = useState<Tab>('service');
 
   return (
-    <main className="flex h-screen flex-col bg-gray-50">
+    <main className="flex flex-col bg-gray-50 h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]">
       <header className="shrink-0 border-b border-gray-200 bg-white px-4 pt-4">
         <h1 className="text-lg font-semibold text-gray-900">Discussion</h1>
         <div className="mt-3 flex gap-6">
