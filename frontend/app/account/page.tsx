@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
-import { Settings, Wallet, Heart, Clock, MapPin, FileClock, Truck, PackageCheck, LifeBuoy } from 'lucide-react';
+import { Settings, Wallet, Heart, Clock, MapPin, FileClock, Truck, PackageCheck, LifeBuoy, LogOut } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatXof } from '@/lib/utils';
@@ -58,7 +58,7 @@ function getTierProgress(loyalty: LoyaltyAccount) {
 }
 
 export default function AccountHomePage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   const { data: loyalty } = useQuery({
     queryKey: ['loyalty'],
@@ -203,6 +203,15 @@ export default function AccountHomePage() {
           ))}
         </div>
       </section>
+
+      {/* Déconnexion - sur mobile c'était introuvable : le seul bouton existant était
+          dans le menu ☰ Navbar en `hidden md:block` (jamais visible sur téléphone). */}
+      <button
+        onClick={logout}
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-100 bg-white p-3 text-sm font-semibold text-red-600"
+      >
+        <LogOut className="h-4 w-4" /> Déconnexion
+      </button>
     </div>
   );
 }

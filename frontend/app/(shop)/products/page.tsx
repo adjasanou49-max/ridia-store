@@ -46,7 +46,7 @@ function ProductsGrid({ categoryId, initialQuery }: { categoryId?: string; initi
 
   const attributesKey = JSON.stringify(attributeFilters);
 
-  const { data, isLoading, isFetchingNextPage, fetchNextPage, hasNextPage } = useInfiniteQuery({
+  const { data, isLoading, isError, error, refetch, isFetchingNextPage, fetchNextPage, hasNextPage } = useInfiniteQuery({
     queryKey: ['products', { categoryId, query, sortBy, attributesKey }],
     initialPageParam: 1,
     queryFn: async ({ pageParam }) =>
@@ -136,6 +136,22 @@ function ProductsGrid({ categoryId, initialQuery }: { categoryId?: string; initi
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="aspect-square bg-gray-100 rounded-xl animate-pulse" />
           ))}
+        </div>
+      ) : isError ? (
+        // Avant ce correctif, une erreur réseau/API tombait silencieusement dans le même
+        // "Aucun produit trouvé" qu'un catalogue vraiment vide - impossible à distinguer
+        // pour l'utilisateur (et invisible pour nous en train de déboguer à distance).
+        <div className="text-center py-16">
+          <p className="text-red-500 mb-3">
+            Impossible de charger les produits
+            {error instanceof Error ? ` (${error.message})` : ''}.
+          </p>
+          <button
+            onClick={() => refetch()}
+            className="text-brand-600 font-medium hover:underline"
+          >
+            Réessayer
+          </button>
         </div>
       ) : items.length ? (
         <>

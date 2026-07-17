@@ -229,9 +229,21 @@ export function Navbar() {
               ))}
             </select>
           </div>
-          {/* Produits/Commandes/Wallet/Paramètres/Déconnexion sont déjà accessibles via la
-              barre du bas (Catégories, Commandes, Compte) - pas besoin de les dupliquer ici.
-              Ce menu ☰ sert uniquement à identifier rapidement langue + devise. */}
+          {/* Produits/Commandes/Wallet/Paramètres sont déjà accessibles via la barre du
+              bas (Catégories, Commandes, Compte). La déconnexion, elle, n'existe NULLE
+              PART ailleurs sur mobile (le menu compte avec "Déconnexion" est en
+              `hidden md:block` dans ce même fichier) - donc on la garde ici explicitement. */}
+          {user && (
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                logout();
+              }}
+              className="text-left text-red-600 pb-2 border-b border-gray-100"
+            >
+              Déconnexion
+            </button>
+          )}
           {isSeller && (
             <Link href="/seller/dashboard" onClick={() => setMenuOpen(false)}>
               Espace Vendeur
