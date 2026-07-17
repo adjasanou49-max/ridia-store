@@ -106,6 +106,7 @@ export interface Product {
   sku: string;
   description: string;
   basePriceXof: number;
+  compareAtPriceXof?: number | null;
   stockQuantity: number;
   reservedStock: number;
   brand?: string | null;
