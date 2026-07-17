@@ -748,6 +748,18 @@ async function main() {
 
     sku += 1;
 
+    // Réduction déterministe (même résultat à chaque reseed, pas aléatoire à
+    // chaque run) sur environ 70% des produits, entre 15% et 45% de remise -
+    // c'est ce qui donne le look "grande plateforme" avec des prix barrés
+    // partout, plutôt qu'un catalogue à prix fixes uniquement.
+    let hash = 0;
+    for (const ch of p.name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+    const hasDiscount = hash % 10 < 7;
+    const discountPercent = 15 + (hash % 31); // 15% à 45%
+    const compareAtPriceXof = hasDiscount
+      ? Math.round(p.priceXof / (1 - discountPercent / 100) / 100) * 100 // arrondi au 100 F CFA le plus proche
+      : null;
+
     const product = await prisma.product.upsert({
       where: { slug },
       create: {
@@ -758,6 +770,7 @@ async function main() {
         sku: `RID-${sku}`,
         description: `${p.name} - disponible en stock, livraison rapide où que vous soyez.`,
         basePriceXof: p.priceXof,
+        compareAtPriceXof,
         marginPercent: 80,
         stockQuantity: 50,
         status: ProductStatus.ACTIVE,
@@ -765,9 +778,10 @@ async function main() {
         isFeatured: p.isFeatured ?? false,
         publishedAt: new Date(),
       },
-      // Seul isFeatured se resynchronise au reseed (pas prix/stock/description,
-      // qui peuvent avoir été ajustés depuis l'admin entre deux seeds).
-      update: { isFeatured: p.isFeatured ?? false },
+      // Seul isFeatured/compareAtPriceXof se resynchronisent au reseed (pas
+      // prix/stock/description, qui peuvent avoir été ajustés depuis
+      // l'admin entre deux seeds).
+      update: { isFeatured: p.isFeatured ?? false, compareAtPriceXof },
     });
 
     for (const [i, url] of p.images.entries()) {
