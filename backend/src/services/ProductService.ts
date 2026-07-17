@@ -67,6 +67,7 @@ const PUBLIC_PRODUCT_SELECT = {
   sku: true,
   description: true,
   basePriceXof: true,
+  compareAtPriceXof: true,
   stockQuantity: true,
   scheduledPriceIncreaseAt: true,
   priceAfterIncrease: true,
