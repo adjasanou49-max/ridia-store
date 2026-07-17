@@ -366,6 +366,10 @@ model Product {
   costPriceXof  Decimal? @db.Decimal(14, 2)
   marginPercent Float    @default(80.0)
   basePriceXof  Decimal  @db.Decimal(14, 2)
+  // Prix "barré" affiché avant réduction (ex: 15 000 F au lieu de 9 900 F) -
+  // purement informatif/marketing, n'affecte jamais le calcul réel du panier.
+  // null ou <= basePriceXof -> pas de badge de réduction affiché.
+  compareAtPriceXof Decimal? @db.Decimal(14, 2)
 
   stockQuantity Int @default(0)
   reservedStock Int @default(0)
